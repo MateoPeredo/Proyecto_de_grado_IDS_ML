@@ -1,0 +1,25 @@
+# Dependencias
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Builds
+dist/
+build/
+
+# Secretos y entorno
+.env
+*.env
+!*.env.example
+
+# Datos de las bases
+*-data/
+
+# Modelo entrenado
+*.joblib
+
+# Sistema
+.DS_Store
+*.log

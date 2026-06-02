@@ -1,0 +1,26 @@
+# ── API ──────────────────────────────────────────────────────────────────────
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20          # forms / login
+pydantic-settings==2.7.1
+
+# ── Seguridad / JWT ──────────────────────────────────────────────────────────
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# ── MySQL (datos transaccionales: usuarios, reglas) ──────────────────────────
+SQLAlchemy==2.0.36
+PyMySQL==1.1.1
+cryptography==44.0.0              # requerido por PyMySQL para auth de MySQL 8
+
+# ── ClickHouse (series temporales para gráficos) ─────────────────────────────
+clickhouse-connect==0.8.11
+
+# ── Elasticsearch (logs, captura de tráfico, alertas) ────────────────────────
+elasticsearch==8.15.1
+
+# ── Machine Learning (Random Forest del IDS) ─────────────────────────────────
+scikit-learn==1.6.0
+pandas==2.2.3
+numpy==2.2.1
+joblib==1.4.2
