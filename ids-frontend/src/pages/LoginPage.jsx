@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useStyles } from "../hooks/useStyles";
 import { NavIcon } from "../components/ui/NavIcon";
+import { authService } from "../services/api";
 
 export function LoginPage({ t, mode, onToggleTheme, onLogin }) {
   const s = useStyles(t);
@@ -14,16 +15,23 @@ export function LoginPage({ t, mode, onToggleTheme, onLogin }) {
     setError("");
     setLoading(true);
 
-    // Swap this block for a real API call:
-    // const res = await authService.login(username, password);
-    await new Promise((r) => setTimeout(r, 600));
-
-    if (username === "admin" && password === "admin123") {
-      onLogin(username);
-    } else {
-      setError("Credenciales incorrectas. Usa admin / admin123");
+    try {
+      // Llamada real al backend FastAPI
+      const res = await authService.login(username, password);
+      const { access_token, username: user, role } = res.data;
+      // Entrega la sesión completa al componente padre (token + datos)
+      onLogin({ username: user, role, token: access_token });
+    } catch (err) {
+      if (err.response?.status === 401) {
+        setError("Credenciales incorrectas.");
+      } else if (err.code === "ERR_NETWORK") {
+        setError("No se pudo conectar con el servidor. ¿Está el backend levantado?");
+      } else {
+        setError("Error al iniciar sesión. Intenta de nuevo.");
+      }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (

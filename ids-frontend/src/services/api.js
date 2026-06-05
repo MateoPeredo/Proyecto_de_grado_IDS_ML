@@ -28,8 +28,11 @@ api.interceptors.response.use(
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
 export const authService = {
-  login:  (username, password) => api.post("/auth/login", { username, password }),
-  logout: ()                   => api.post("/auth/logout"),
+  login:    (username, password) => api.post("/auth/login", { username, password }),
+  logout:   ()                   => api.post("/auth/logout"),
+  me:       ()                   => api.get("/auth/me"),
+  register: (user)               => api.post("/auth/register", user),
+  listUsers:()                   => api.get("/auth/users"),
 };
 
 // ── Alerts ───────────────────────────────────────────────────────────────────

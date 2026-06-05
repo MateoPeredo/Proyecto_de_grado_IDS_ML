@@ -10,6 +10,7 @@ import { PageMonitoreo } from "../../pages/MonitoreoPage";
 import { PageAlertas }   from "../../pages/AlertasPage";
 import { PageReglas }    from "../../pages/ReglasFirmasPage";
 import { PageML }        from "../../pages/MLModeloPage";
+import { PageUsuarios }  from "../../pages/UsuariosPage";
 import { PageConfig }    from "../../pages/ConfigPage";
 
 export function AppShell() {
@@ -27,6 +28,7 @@ export function AppShell() {
     alertas:   <PageAlertas  alerts={alerts} onAck={acknowledge} onAckAll={acknowledgeAll} t={t} />,
     reglas:    <PageReglas   t={t} />,
     ml:        <PageML       t={t} />,
+    usuarios:  <PageUsuarios t={t} />,
     config:    <PageConfig   t={t} mode={mode} onToggleTheme={toggle} />,
   };
 

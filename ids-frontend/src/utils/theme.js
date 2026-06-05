@@ -51,5 +51,6 @@ export const NAV_ITEMS = [
   { id: "alertas",   label: "Alertas",          icon: "bell"     },
   { id: "reglas",    label: "Reglas / Firmas",  icon: "file"     },
   { id: "ml",        label: "ML / Modelo",      icon: "cpu"      },
+  { id: "usuarios",  label: "Usuarios",         icon: "users"    },
   { id: "config",    label: "Configuración",    icon: "settings" },
 ];

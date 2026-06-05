@@ -5,8 +5,8 @@ import { AppShell } from "./components/layout/AppShell";
 
 function Root() {
   const { t, mode, toggle } = useTheme();
-  const user  = useAuthStore((s) => s.user);
-  const login = useAuthStore((s) => s.login);
+  const user       = useAuthStore((s) => s.user);
+  const setSession = useAuthStore((s) => s.setSession);
 
   if (!user) {
     return (
@@ -14,7 +14,7 @@ function Root() {
         t={t}
         mode={mode}
         onToggleTheme={toggle}
-        onLogin={login}
+        onLogin={setSession}
       />
     );
   }

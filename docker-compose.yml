@@ -26,6 +26,12 @@ services:
     container_name: ids-backend
     expose:
       - "8000"            # solo visible dentro de la red de docker (Nginx hace proxy)
+    # Variables del backend. El .env es opcional (no se versiona por seguridad);
+    # si no existe, valen las de 'environment'. Para producción real, definí
+    # JWT_SECRET en el .env y no lo subas al repo.
+    env_file:
+      - path: ./ids-backend/.env
+        required: false
     environment:
       MYSQL_HOST: mysql
       MYSQL_USER: ids
@@ -34,7 +40,6 @@ services:
       CLICKHOUSE_HOST: clickhouse
       CLICKHOUSE_DB: ids_metrics
       ELASTIC_HOST: http://elasticsearch:9200
-      JWT_SECRET: 4Nc153yYkPOOh2MoWncFTNj2
     restart: unless-stopped
     depends_on:
       mysql:

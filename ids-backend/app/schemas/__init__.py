@@ -15,6 +15,21 @@ class TokenResponse(BaseModel):
     role: str
 
 
+# ── Usuarios ─────────────────────────────────────────────────────────────────
+class UserCreate(BaseModel):
+    username: str
+    password: str
+    role: str = "analyst"   # analyst | admin
+
+
+class UserOut(BaseModel):
+    id: int
+    username: str
+    role: str
+
+    model_config = {"from_attributes": True}
+
+
 # ── Rules ────────────────────────────────────────────────────────────────────
 class RuleCreate(BaseModel):
     name: str

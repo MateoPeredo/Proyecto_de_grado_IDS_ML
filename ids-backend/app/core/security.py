@@ -1,22 +1,36 @@
 """
 Utilidades de seguridad: hashing de contraseñas (bcrypt) y tokens JWT.
+
+Se usa la librería `bcrypt` directamente en lugar de passlib, porque las
+versiones recientes de bcrypt (4.x+) rompieron la compatibilidad con passlib
+1.7.x. Usar bcrypt directo es más estable y no requiere capas intermedias.
 """
 from datetime import datetime, timedelta, timezone
 
+import bcrypt
 from jose import jwt, JWTError
-from passlib.context import CryptContext
 
 from app.config import settings
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# bcrypt solo procesa los primeros 72 bytes de la contraseña; truncamos de forma
+# segura para evitar errores con contraseñas largas.
+_MAX_BCRYPT_BYTES = 72
+
+
+def _to_bytes(password: str) -> bytes:
+    return password.encode("utf-8")[:_MAX_BCRYPT_BYTES]
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    hashed = bcrypt.hashpw(_to_bytes(password), bcrypt.gensalt())
+    return hashed.decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    try:
+        return bcrypt.checkpw(_to_bytes(plain), hashed.encode("utf-8"))
+    except (ValueError, TypeError):
+        return False
 
 
 def create_access_token(data: dict) -> str:
