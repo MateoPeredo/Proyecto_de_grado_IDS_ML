@@ -59,3 +59,47 @@ class RuleOut(BaseModel):
     description: Optional[str] = None
 
     model_config = {"from_attributes": True}
+
+
+# ── Notifications ────────────────────────────────────────────────────────────
+class NotificationCreate(BaseModel):
+    nombre: str
+    email: str
+    severidad_minima: str = "high"
+    tipo_ataque: str = "any"
+    enabled: bool = True
+
+
+class NotificationUpdate(BaseModel):
+    nombre: Optional[str] = None
+    email: Optional[str] = None
+    severidad_minima: Optional[str] = None
+    tipo_ataque: Optional[str] = None
+    enabled: Optional[bool] = None
+
+
+class NotificationOut(BaseModel):
+    id: int
+    nombre: str
+    email: str
+    severidad_minima: str
+    tipo_ataque: str
+    enabled: bool
+
+    model_config = {"from_attributes": True}
+
+
+# ── Alerts ───────────────────────────────────────────────────────────────────
+class AlertOut(BaseModel):
+    id: int
+    timestamp: Optional[object] = None
+    signature_name: str
+    severity: str
+    source_ip: Optional[str] = None
+    dest_ip: Optional[str] = None
+    protocol: Optional[str] = None
+    description: Optional[str] = None
+    detected_by: str
+    acknowledged: bool
+
+    model_config = {"from_attributes": True}

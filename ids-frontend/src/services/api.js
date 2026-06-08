@@ -62,3 +62,18 @@ export const mlService = {
 export const monitorService = {
   getStats: () => api.get("/monitor/stats"),
 };
+
+// ── Config del IDS ───────────────────────────────────────────────────────────
+export const configService = {
+  get:  ()       => api.get("/config"),
+  save: (cfg)    => api.put("/config", cfg),
+};
+
+// ── Notificaciones ───────────────────────────────────────────────────────────
+export const notificationsService = {
+  getAll: ()            => api.get("/notifications"),
+  create: (n)           => api.post("/notifications", n),
+  update: (id, n)       => api.put(`/notifications/${id}`, n),
+  toggle: (id, enabled) => api.patch(`/notifications/${id}`, { enabled }),
+  delete: (id)          => api.delete(`/notifications/${id}`),
+};

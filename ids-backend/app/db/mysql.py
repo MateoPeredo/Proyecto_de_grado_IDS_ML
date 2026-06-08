@@ -34,7 +34,7 @@ def init_db(retries: int = 10, delay: int = 3):
     así que reintentamos varias veces antes de rendirnos.
     """
     # importa los modelos para que SQLAlchemy los registre en Base.metadata
-    from app.models import user, rule  # noqa: F401
+    from app.models import user, rule, config, alert, notification  # noqa: F401
 
     for intento in range(1, retries + 1):
         try:

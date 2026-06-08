@@ -14,7 +14,7 @@ from app.db.clickhouse import init_clickhouse
 from app.db.elastic import init_elastic
 from app.models.user import User
 from app.core.security import hash_password
-from app.routers import auth, rules, alerts, monitor, ml
+from app.routers import auth, rules, alerts, monitor, ml, config as config_router, notifications
 
 
 def seed_admin():
@@ -35,6 +35,22 @@ def seed_admin():
         db.close()
 
 
+def seed_config():
+    """Siembra la configuración por defecto del IDS si la tabla está vacía."""
+    from app.models.config import Config, CONFIG_DEFAULTS
+    db = SessionLocal()
+    try:
+        if db.query(Config).count() == 0:
+            for clave, valor in CONFIG_DEFAULTS.items():
+                db.add(Config(clave=clave, valor=valor))
+            db.commit()
+            print("[seed] configuración por defecto del IDS creada")
+    except Exception as e:
+        print(f"[seed] no se pudo crear la config: {e}")
+    finally:
+        db.close()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # arranque: inicializa las tres bases (cada una tolera fallos por su cuenta)
@@ -42,6 +58,7 @@ async def lifespan(app: FastAPI):
     init_clickhouse()
     init_elastic()
     seed_admin()
+    seed_config()
     yield
     # apagado: nada que limpiar por ahora
 
@@ -63,6 +80,8 @@ app.include_router(rules.router)
 app.include_router(alerts.router)
 app.include_router(monitor.router)
 app.include_router(ml.router)
+app.include_router(config_router.router)
+app.include_router(notifications.router)
 
 
 @app.get("/health")

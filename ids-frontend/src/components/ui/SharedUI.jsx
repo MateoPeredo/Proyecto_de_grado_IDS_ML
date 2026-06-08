@@ -64,8 +64,11 @@ export function Toggle({ on, onChange, t }) {
 // ── SevBadge ─────────────────────────────────────────────────────────────────
 export function SevBadge({ sev, t }) {
   const s = useStyles(t);
+  // Acepta tanto los valores del backend (critical/high/medium/low)
+  // como los abreviados que se usaban antes (crit/med).
+  const norm = { critical: "crit", high: "high", medium: "med", low: "low" }[sev] ?? sev;
   const labels = { crit: "Crítico", high: "Alto", med: "Medio", low: "Bajo" };
-  return <span style={s.sev(sev)}>{labels[sev] ?? sev}</span>;
+  return <span style={s.sev(norm)}>{labels[norm] ?? sev}</span>;
 }
 
 // ── Sparkline ────────────────────────────────────────────────────────────────

@@ -8,6 +8,7 @@ import { useAlerts } from "../../hooks/useAlerts";
 import { PageDashboard } from "../../pages/DashboardPage";
 import { PageMonitoreo } from "../../pages/MonitoreoPage";
 import { PageAlertas }   from "../../pages/AlertasPage";
+import { PageNotificaciones } from "../../pages/NotificacionesPage";
 import { PageReglas }    from "../../pages/ReglasFirmasPage";
 import { PageML }        from "../../pages/MLModeloPage";
 import { PageUsuarios }  from "../../pages/UsuariosPage";
@@ -26,6 +27,7 @@ export function AppShell() {
     dashboard: <PageDashboard alerts={alerts} t={t} />,
     monitoreo: <PageMonitoreo t={t} />,
     alertas:   <PageAlertas  alerts={alerts} onAck={acknowledge} onAckAll={acknowledgeAll} t={t} />,
+    notif:     <PageNotificaciones t={t} />,
     reglas:    <PageReglas   t={t} />,
     ml:        <PageML       t={t} />,
     usuarios:  <PageUsuarios t={t} />,
