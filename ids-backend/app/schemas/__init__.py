@@ -22,6 +22,11 @@ class UserCreate(BaseModel):
     role: str = "analyst"   # analyst | admin
 
 
+class UserUpdate(BaseModel):
+    password: Optional[str] = None   # opcional: solo si se quiere cambiar
+    role: Optional[str] = None        # opcional: analyst | admin
+
+
 class UserOut(BaseModel):
     id: int
     username: str

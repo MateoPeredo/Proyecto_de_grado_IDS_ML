@@ -25,10 +25,7 @@ services:
       dockerfile: Dockerfile
     container_name: ids-backend
     expose:
-      - "8000"            # solo visible dentro de la red de docker (Nginx hace proxy)
-    # Variables del backend. El .env es opcional (no se versiona por seguridad);
-    # si no existe, valen las de 'environment'. Para producción real, definí
-    # JWT_SECRET en el .env y no lo subas al repo.
+      - "8000"           
     env_file:
       - path: ./ids-backend/.env
         required: false
@@ -95,8 +92,8 @@ services:
     container_name: ids-elasticsearch
     environment:
       discovery.type: single-node
-      xpack.security.enabled: "false"        # sin auth para entorno de desarrollo
-      ES_JAVA_OPTS: "-Xms512m -Xmx512m"       # límite de RAM para la JVM
+      xpack.security.enabled: "false"        
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"       
     volumes:
       - elastic-data:/usr/share/elasticsearch/data
     restart: unless-stopped

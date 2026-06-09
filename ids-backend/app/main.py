@@ -14,7 +14,7 @@ from app.db.clickhouse import init_clickhouse
 from app.db.elastic import init_elastic
 from app.models.user import User
 from app.core.security import hash_password
-from app.routers import auth, rules, alerts, monitor, ml, config as config_router, notifications
+from app.routers import auth, rules, alerts, monitor, ml, config as config_router, notifications, logs
 
 
 def seed_admin():
@@ -51,21 +51,35 @@ def seed_config():
         db.close()
 
 
+async def limpieza_periodica():
+    """
+    Tarea de fondo: ejecuta la limpieza de logs antiguos en Elasticsearch
+    una vez al día. Reemplazo simple de ILM.
+    """
+    from app.db.elastic import limpiar_antiguos
+    while True:
+        await asyncio.sleep(24 * 60 * 60)  
+        limpiar_antiguos()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # arranque: inicializa las tres bases (cada una tolera fallos por su cuenta)
+    
     init_db()
     init_clickhouse()
     init_elastic()
     seed_admin()
     seed_config()
+    
+    tarea = asyncio.create_task(limpieza_periodica())
     yield
-    # apagado: nada que limpiar por ahora
+    
+    tarea.cancel()
 
 
 app = FastAPI(title=settings.APP_NAME, lifespan=lifespan)
 
-# CORS — el frontend va detrás del proxy de Nginx, pero esto cubre acceso directo
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -74,7 +88,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Routers (sin prefijo /api: Nginx ya quita ese prefijo al hacer proxy)
+
 app.include_router(auth.router)
 app.include_router(rules.router)
 app.include_router(alerts.router)
@@ -82,6 +96,7 @@ app.include_router(monitor.router)
 app.include_router(ml.router)
 app.include_router(config_router.router)
 app.include_router(notifications.router)
+app.include_router(logs.router)
 
 
 @app.get("/health")
@@ -89,15 +104,13 @@ def health():
     return {"status": "ok"}
 
 
-# ── WebSocket en vivo ────────────────────────────────────────────────────────
-# El frontend (ws.js) se conecta a /ws/live para recibir alertas en tiempo real.
+
 @app.websocket("/ws/live")
 async def ws_live(ws: WebSocket):
     await ws.accept()
     try:
         while True:
-            # Placeholder: aquí emitirás las alertas reales que detecte el IDS.
-            # Por ahora mandamos un heartbeat cada 5s para validar la conexión.
+
             await ws.send_text(json.dumps({"type": "heartbeat", "ok": True}))
             await asyncio.sleep(5)
     except WebSocketDisconnect:

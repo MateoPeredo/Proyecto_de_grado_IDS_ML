@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.db.mysql import get_db
 from app.models.user import User
 from app.core.security import verify_password, create_access_token, decode_token, hash_password
-from app.schemas import LoginRequest, TokenResponse, UserCreate, UserOut
+from app.schemas import LoginRequest, TokenResponse, UserCreate, UserOut, UserUpdate
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 bearer = HTTPBearer(auto_error=False)
@@ -80,3 +80,58 @@ def register(body: UserCreate, db: Session = Depends(get_db), _: User = Depends(
 @router.get("/users", response_model=list[UserOut])
 def list_users(db: Session = Depends(get_db), _: User = Depends(current_user)):
     return db.query(User).order_by(User.id).all()
+
+
+@router.put("/users/{user_id}", response_model=UserOut)
+def update_user(
+    user_id: int,
+    body: UserUpdate,
+    db: Session = Depends(get_db),
+    _: User = Depends(current_user),
+):
+    """Edita el rol y/o la contraseña de un usuario."""
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    if body.role is not None:
+        if body.role not in ("analyst", "admin"):
+            raise HTTPException(status_code=400, detail="Rol inválido")
+        # Evita quitarle admin al último administrador
+        if user.role == "admin" and body.role != "admin":
+            admins = db.query(User).filter(User.role == "admin").count()
+            if admins <= 1:
+                raise HTTPException(status_code=400, detail="No se puede quitar el rol al último administrador")
+        user.role = body.role
+
+    if body.password is not None:
+        if len(body.password) < 4:
+            raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 4 caracteres")
+        user.password_hash = hash_password(body.password)
+
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.delete("/users/{user_id}")
+def delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    actual: User = Depends(current_user),
+):
+    """Borra un usuario, con protecciones para no quedarse sin acceso."""
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    # No permitir que un usuario se borre a sí mismo
+    if user.id == actual.id:
+        raise HTTPException(status_code=400, detail="No puedes eliminar tu propia cuenta")
+    # No permitir borrar el último administrador
+    if user.role == "admin":
+        admins = db.query(User).filter(User.role == "admin").count()
+        if admins <= 1:
+            raise HTTPException(status_code=400, detail="No se puede eliminar el último administrador")
+    db.delete(user)
+    db.commit()
+    return {"ok": True}

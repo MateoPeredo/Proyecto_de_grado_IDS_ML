@@ -7,18 +7,19 @@ export const api = axios.create({
   timeout: 8000,
 });
 
-
+// Attach JWT token to every request
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("ids_token");
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
+
 let sesionExpiradaNotificada = false;
 
 api.interceptors.response.use(
   (res) => {
-
+    
     sesionExpiradaNotificada = false;
     return res;
   },
@@ -27,7 +28,7 @@ api.interceptors.response.use(
       localStorage.removeItem("ids_token");
       localStorage.removeItem("ids_user");
       localStorage.removeItem("ids_role");
-      // Notifica una sola vez (evita ráfagas de eventos por peticiones en paralelo)
+      
       if (!sesionExpiradaNotificada) {
         sesionExpiradaNotificada = true;
         window.dispatchEvent(new Event("ids:sesion-expirada"));
@@ -44,6 +45,8 @@ export const authService = {
   me:       ()                   => api.get("/auth/me"),
   register: (user)               => api.post("/auth/register", user),
   listUsers:()                   => api.get("/auth/users"),
+  updateUser:(id, data)          => api.put(`/auth/users/${id}`, data),
+  deleteUser:(id)                => api.delete(`/auth/users/${id}`),
 };
 
 // ── Alerts ───────────────────────────────────────────────────────────────────
@@ -89,4 +92,11 @@ export const notificationsService = {
   update: (id, n)       => api.put(`/notifications/${id}`, n),
   toggle: (id, enabled) => api.patch(`/notifications/${id}`, { enabled }),
   delete: (id)          => api.delete(`/notifications/${id}`),
+};
+
+// ── Logs (Elasticsearch) ─────────────────────────────────────────────────────
+export const logsService = {
+  plataforma: (params) => api.get("/logs/plataforma", { params }),
+  deteccion:  (params) => api.get("/logs/deteccion", { params }),
+  trafico:    (params) => api.get("/logs/trafico", { params }),
 };

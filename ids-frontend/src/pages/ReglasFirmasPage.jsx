@@ -11,6 +11,7 @@ export function PageReglas({ t }) {
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId] = useState(null);
   const [form, setForm] = useState({
     name: "", pattern: "", protocol: "tcp", severity: "medium", description: "",
   });
@@ -44,16 +45,35 @@ export function PageReglas({ t }) {
     } catch { /* noop */ }
   };
 
-  const addRule = async () => {
+  const guardarRegla = async () => {
     if (!form.name.trim() || !form.pattern.trim()) return;
     try {
-      const res = await rulesService.create(form);
-      setRules((prev) => [...prev, res.data]);
-      setForm({ name: "", pattern: "", protocol: "tcp", severity: "medium", description: "" });
-      setShowForm(false);
+      if (editId) {
+        const res = await rulesService.update(editId, form);
+        setRules((prev) => prev.map((x) => (x.id === editId ? res.data : x)));
+      } else {
+        const res = await rulesService.create(form);
+        setRules((prev) => [...prev, res.data]);
+      }
+      cancelarForm();
     } catch {
-      setError("No se pudo crear la regla.");
+      setError(editId ? "No se pudo actualizar la regla." : "No se pudo crear la regla.");
     }
+  };
+
+  const empezarEdicion = (r) => {
+    setEditId(r.id);
+    setForm({
+      name: r.name, pattern: r.pattern, protocol: r.protocol,
+      severity: r.severity, description: r.description || "",
+    });
+    setShowForm(true);
+  };
+
+  const cancelarForm = () => {
+    setEditId(null);
+    setForm({ name: "", pattern: "", protocol: "tcp", severity: "medium", description: "" });
+    setShowForm(false);
   };
 
   const sevColor = (sev) =>
@@ -74,7 +94,7 @@ export function PageReglas({ t }) {
         {/* Lista de reglas */}
         <div style={s.card}>
           <SectionHeader title="Firmas cargadas" badge={`${rules.length} reglas`} t={t}>
-            <button onClick={() => setShowForm((f) => !f)} style={s.btn("primary")}>
+            <button onClick={() => (showForm ? cancelarForm() : setShowForm(true))} style={s.btn("primary")}>
               <NavIcon name={showForm ? "x" : "plus"} size={14} />
               {showForm ? "Cancelar" : "Nueva regla"}
             </button>
@@ -106,6 +126,9 @@ export function PageReglas({ t }) {
                     </div>
                   </div>
                   <Toggle on={r.enabled} onChange={() => toggleRule(r)} t={t} />
+                  <button onClick={() => empezarEdicion(r)} style={{ ...s.btn("ghost"), fontSize: 11, padding: "4px 10px" }}>
+                    Editar
+                  </button>
                   <button onClick={() => deleteRule(r.id)} style={{ ...s.btn("ghost"), padding: "4px 6px", border: "none", color: t.text3 }}>
                     <NavIcon name="x" size={13} />
                   </button>
@@ -118,7 +141,7 @@ export function PageReglas({ t }) {
         {/* Formulario nueva regla */}
         {showForm && (
           <div style={s.card}>
-            <SectionHeader title="Nueva regla de firma" t={t} />
+            <SectionHeader title={editId ? "Editar regla de firma" : "Nueva regla de firma"} t={t} />
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {[
                 { label: "Nombre de la regla",  key: "name",        placeholder: "Detección escaneo de puertos" },
@@ -155,8 +178,8 @@ export function PageReglas({ t }) {
                   </select>
                 </div>
               </div>
-              <button onClick={addRule} style={{ ...s.btn("primary"), justifyContent: "center", padding: 10 }}>
-                <NavIcon name="check" size={14} /> Guardar regla
+              <button onClick={guardarRegla} style={{ ...s.btn("primary"), justifyContent: "center", padding: 10 }}>
+                <NavIcon name="check" size={14} /> {editId ? "Guardar cambios" : "Guardar regla"}
               </button>
             </div>
           </div>

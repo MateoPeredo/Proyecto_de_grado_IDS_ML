@@ -18,6 +18,7 @@ export function PageNotificaciones({ t }) {
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId] = useState(null);   // null = creando, id = editando
   const [form, setForm] = useState({
     nombre: "", email: "", severidad_minima: "high", tipo_ataque: "any", enabled: true,
   });
@@ -51,16 +52,36 @@ export function PageNotificaciones({ t }) {
     } catch { /* noop */ }
   };
 
-  const crear = async () => {
+  const guardar = async () => {
     if (!form.nombre.trim() || !form.email.trim()) return;
     try {
-      const res = await notificationsService.create(form);
-      setItems((prev) => [...prev, res.data]);
-      setForm({ nombre: "", email: "", severidad_minima: "high", tipo_ataque: "any", enabled: true });
-      setShowForm(false);
+      if (editId) {
+        const res = await notificationsService.update(editId, form);
+        setItems((prev) => prev.map((x) => (x.id === editId ? res.data : x)));
+      } else {
+        const res = await notificationsService.create(form);
+        setItems((prev) => [...prev, res.data]);
+      }
+      cancelarForm();
     } catch {
-      setError("No se pudo crear la notificación.");
+      setError(editId ? "No se pudo actualizar la notificación." : "No se pudo crear la notificación.");
     }
+  };
+
+  const empezarEdicion = (n) => {
+    setEditId(n.id);
+    setForm({
+      nombre: n.nombre, email: n.email,
+      severidad_minima: n.severidad_minima, tipo_ataque: n.tipo_ataque,
+      enabled: n.enabled,
+    });
+    setShowForm(true);
+  };
+
+  const cancelarForm = () => {
+    setEditId(null);
+    setForm({ nombre: "", email: "", severidad_minima: "high", tipo_ataque: "any", enabled: true });
+    setShowForm(false);
   };
 
   const sevLabel = (v) => SEVERIDADES.find((s) => s.value === v)?.label ?? v;
@@ -84,7 +105,7 @@ export function PageNotificaciones({ t }) {
         {/* Lista */}
         <div style={s.card}>
           <SectionHeader title="Reglas de notificación" badge={`${items.length}`} t={t}>
-            <button onClick={() => setShowForm((f) => !f)} style={s.btn("primary")}>
+            <button onClick={() => (showForm ? cancelarForm() : setShowForm(true))} style={s.btn("primary")}>
               <NavIcon name={showForm ? "x" : "plus"} size={14} />
               {showForm ? "Cancelar" : "Nueva notificación"}
             </button>
@@ -111,6 +132,9 @@ export function PageNotificaciones({ t }) {
                     </div>
                   </div>
                   <Toggle on={n.enabled} onChange={() => toggle(n)} t={t} />
+                  <button onClick={() => empezarEdicion(n)} style={{ ...s.btn("ghost"), fontSize: 11, padding: "4px 10px" }}>
+                    Editar
+                  </button>
                   <button onClick={() => eliminar(n.id)} style={{ ...s.btn("ghost"), padding: "4px 6px", border: "none", color: t.text3 }}>
                     <NavIcon name="x" size={13} />
                   </button>
@@ -123,7 +147,7 @@ export function PageNotificaciones({ t }) {
         {/* Formulario */}
         {showForm && (
           <div style={s.card}>
-            <SectionHeader title="Nueva regla de notificación" t={t} />
+            <SectionHeader title={editId ? "Editar notificación" : "Nueva regla de notificación"} t={t} />
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div>
                 <label style={s.label}>Nombre descriptivo</label>
@@ -153,8 +177,8 @@ export function PageNotificaciones({ t }) {
                   </select>
                 </div>
               </div>
-              <button onClick={crear} style={{ ...s.btn("primary"), justifyContent: "center", padding: 10 }}>
-                <NavIcon name="check" size={14} /> Guardar notificación
+              <button onClick={guardar} style={{ ...s.btn("primary"), justifyContent: "center", padding: 10 }}>
+                <NavIcon name="check" size={14} /> {editId ? "Guardar cambios" : "Guardar notificación"}
               </button>
             </div>
           </div>
