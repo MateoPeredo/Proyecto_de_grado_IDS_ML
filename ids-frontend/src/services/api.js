@@ -7,20 +7,31 @@ export const api = axios.create({
   timeout: 8000,
 });
 
-// Attach JWT token to every request
+
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("ids_token");
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// Redirect to login on 401
+let sesionExpiradaNotificada = false;
+
 api.interceptors.response.use(
-  (res) => res,
+  (res) => {
+
+    sesionExpiradaNotificada = false;
+    return res;
+  },
   (err) => {
     if (err.response?.status === 401) {
       localStorage.removeItem("ids_token");
-      window.location.reload();
+      localStorage.removeItem("ids_user");
+      localStorage.removeItem("ids_role");
+      // Notifica una sola vez (evita ráfagas de eventos por peticiones en paralelo)
+      if (!sesionExpiradaNotificada) {
+        sesionExpiradaNotificada = true;
+        window.dispatchEvent(new Event("ids:sesion-expirada"));
+      }
     }
     return Promise.reject(err);
   }
@@ -60,7 +71,9 @@ export const mlService = {
 
 // ── Monitor ──────────────────────────────────────────────────────────────────
 export const monitorService = {
-  getStats: () => api.get("/monitor/stats"),
+  getStats:       (minutes) => api.get("/monitor/stats", { params: { minutes } }),
+  getAlertsTimeline: (hours) => api.get("/monitor/alerts-timeline", { params: { hours } }),
+  getProtocols:   (hours)   => api.get("/monitor/protocols", { params: { hours } }),
 };
 
 // ── Config del IDS ───────────────────────────────────────────────────────────

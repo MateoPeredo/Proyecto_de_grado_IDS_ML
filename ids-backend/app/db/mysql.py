@@ -11,7 +11,7 @@ from app.config import settings
 
 engine = create_engine(
     settings.mysql_url,
-    pool_pre_ping=True,   # verifica la conexión antes de usarla (evita "MySQL has gone away")
+    pool_pre_ping=True, 
     pool_recycle=3600,
 )
 
@@ -33,8 +33,8 @@ def init_db(retries: int = 10, delay: int = 3):
     Crea las tablas al arrancar. MySQL tarda unos segundos en aceptar conexiones,
     así que reintentamos varias veces antes de rendirnos.
     """
-    # importa los modelos para que SQLAlchemy los registre en Base.metadata
-    from app.models import user, rule, config, alert, notification  # noqa: F401
+
+    from app.models import user, rule, config, alert, notification
 
     for intento in range(1, retries + 1):
         try:

@@ -12,8 +12,7 @@ from jose import jwt, JWTError
 
 from app.config import settings
 
-# bcrypt solo procesa los primeros 72 bytes de la contraseña; truncamos de forma
-# segura para evitar errores con contraseñas largas.
+
 _MAX_BCRYPT_BYTES = 72
 
 

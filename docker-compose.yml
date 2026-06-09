@@ -75,6 +75,10 @@ services:
   clickhouse:
     image: clickhouse/clickhouse-server:24.8
     container_name: ids-clickhouse
+    environment:
+      CLICKHOUSE_USER: ids
+      CLICKHOUSE_PASSWORD: ids_pass
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
     ulimits:
       nofile:
         soft: 262144
