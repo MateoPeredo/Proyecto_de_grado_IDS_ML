@@ -47,5 +47,28 @@ class Settings(BaseSettings):
     # ── Modelo ML ────────────────────────────────────────────────────────────
     MODEL_PATH: str = "/app/app/ml/model.joblib"
 
+    # ── SMTP (envío de notificaciones por correo) ────────────────────────────
+    # SMTP_PROVIDER define el host automáticamente: "gmail" o "outlook".
+    # Para otro servidor, poné SMTP_PROVIDER=custom y completá SMTP_HOST.
+    # Puerto 465 = SSL directo (recomendado, suele pasar firewalls/ISP).
+    # Puerto 587 = STARTTLS (si tu red lo permite).
+    SMTP_PROVIDER: str = "gmail"          # gmail | outlook | custom
+    SMTP_HOST: str = ""                    # solo si SMTP_PROVIDER=custom
+    SMTP_PORT: int = 465                   # 465 = SSL directo | 587 = STARTTLS
+    SMTP_USER: str = ""                    # cuenta remitente, ej. ids.ml.noti@gmail.com
+    SMTP_PASSWORD: str = ""                # contraseña de APLICACIÓN (16 dígitos), NO la normal
+    SMTP_FROM_NAME: str = "IDS ML - Notificaciones"
+
+    # Servidor SMTP según proveedor (usa el puerto SMTP_PORT configurado)
+    @property
+    def smtp_server(self) -> tuple[str, int]:
+        hosts = {
+            "gmail":   "smtp.gmail.com",
+            "outlook": "smtp-mail.outlook.com",
+        }
+        if self.SMTP_PROVIDER in hosts:
+            return (hosts[self.SMTP_PROVIDER], self.SMTP_PORT)
+        return (self.SMTP_HOST, self.SMTP_PORT)
+
 
 settings = Settings()
