@@ -34,7 +34,7 @@ def init_db(retries: int = 10, delay: int = 3):
     así que reintentamos varias veces antes de rendirnos.
     """
 
-    from app.models import user, rule, config, alert, notification
+    from app.models import user, rule, config, alert, notification, ids_signature
 
     for intento in range(1, retries + 1):
         try:

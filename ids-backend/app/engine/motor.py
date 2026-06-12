@@ -1,0 +1,155 @@
+"""
+Motor de captura del IDS.
+
+Captura paquetes con Scapy en una interfaz de red, extrae la información de
+comportamiento (sin payload), la pasa al Detector, y guarda las alertas
+resultantes en MySQL.
+
+Requiere privilegios de root y la interfaz en modo promiscuo (un IDS observa 
+todo el tráfico del segmento, no solo el dirigido a él).
+
+USO (desde la carpeta ids-backend, como root):
+    python -m app.engine.motor --interfaz eth0
+    python -m app.engine.motor --interfaz br-xxxx   # interfaz bridge del laboratorio
+
+Si no se indica interfaz, intenta leerla de la config del IDS (tabla config).
+"""
+import argparse
+import time
+
+from app.db.mysql import SessionLocal
+from app.models.ids_signature import IDSSignature
+from app.models.alert import Alert
+from app.engine.detector import Detector, Firma, PaqueteInfo
+
+
+def cargar_firmas() -> list[Firma]:
+    """Lee las firmas activas desde MySQL y las convierte a objetos Firma."""
+    db = SessionLocal()
+    try:
+        filas = db.query(IDSSignature).filter(IDSSignature.enabled == True).all()
+        return [
+            Firma(
+                id=f.id, nombre=f.nombre, tipo_firma=f.tipo_firma,
+                severidad=f.severidad, umbral=f.umbral,
+                ventana_segundos=f.ventana_segundos, track_by=f.track_by,
+                puerto=f.puerto, protocolo=f.protocolo,
+            )
+            for f in filas
+        ]
+    finally:
+        db.close()
+
+
+def guardar_alerta(alerta: dict):
+    """Inserta una alerta detectada en la tabla alerts de MySQL."""
+    db = SessionLocal()
+    try:
+        registro = Alert(
+            signature_name=alerta["signature_name"],
+            severity=alerta["severity"],
+            source_ip=alerta.get("source_ip"),
+            dest_ip=alerta.get("dest_ip"),
+            protocol=alerta.get("protocol"),
+            description=alerta.get("description"),
+            detected_by=alerta.get("detected_by", "firma"),
+        )
+        db.add(registro)
+        db.commit()
+    except Exception as e:
+        print(f"[motor] no se pudo guardar la alerta: {e}")
+    finally:
+        db.close()
+
+
+def _flags_a_str(tcp_layer) -> str:
+    """Convierte las flags TCP de Scapy a una cadena tipo 'S', 'FPU', '' (NULL)."""
+    # Mapa de flags de Scapy a letras
+    f = tcp_layer.flags
+    resultado = ""
+    if f & 0x02: resultado += "S"   # SYN
+    if f & 0x01: resultado += "F"   # FIN
+    if f & 0x08: resultado += "P"   # PSH
+    if f & 0x20: resultado += "U"   # URG
+    if f & 0x10: resultado += "A"   # ACK
+    if f & 0x04: resultado += "R"   # RST
+    return resultado
+
+
+def paquete_a_info(pkt) -> PaqueteInfo | None:
+    """Extrae PaqueteInfo de un paquete Scapy. Devuelve None si no es IP."""
+    # import local para que el módulo se pueda importar sin scapy instalado
+    from scapy.layers.inet import IP, TCP, UDP, ICMP
+
+    if IP not in pkt:
+        return None
+
+    ip = pkt[IP]
+    src_ip, dst_ip = ip.src, ip.dst
+    src_port = dst_port = None
+    flags = ""
+    proto = "otro"
+
+    if TCP in pkt:
+        proto = "tcp"
+        src_port = int(pkt[TCP].sport)
+        dst_port = int(pkt[TCP].dport)
+        flags = _flags_a_str(pkt[TCP])
+    elif UDP in pkt:
+        proto = "udp"
+        src_port = int(pkt[UDP].sport)
+        dst_port = int(pkt[UDP].dport)
+    elif ICMP in pkt:
+        proto = "icmp"
+    else:
+        return None  # solo nos interesan tcp/udp/icmp
+
+    return PaqueteInfo(
+        ts=time.time(), src_ip=src_ip, dst_ip=dst_ip,
+        src_port=src_port, dst_port=dst_port,
+        protocolo=proto, flags=flags, size=len(pkt),
+    )
+
+
+def iniciar(interfaz: str, recargar_cada: int = 60):
+    """
+    Bucle principal: captura en `interfaz` y procesa cada paquete.
+    Recarga las firmas desde la BD cada `recargar_cada` segundos.
+    """
+    from scapy.all import sniff
+
+    firmas = cargar_firmas()
+    if not firmas:
+        print("[motor] ADVERTENCIA: no hay firmas activas en la BD.")
+    detector = Detector(firmas)
+    print(f"[motor] {len(firmas)} firmas cargadas. Escuchando en {interfaz}...")
+
+    estado = {"ultima_recarga": time.time()}
+
+    def manejar(pkt):
+        # recargar firmas periódicamente (por si se editaron en la BD)
+        if time.time() - estado["ultima_recarga"] > recargar_cada:
+            detector.actualizar_firmas(cargar_firmas())
+            estado["ultima_recarga"] = time.time()
+
+        info = paquete_a_info(pkt)
+        if info is None:
+            return
+        for alerta in detector.procesar(info):
+            print(f"[ALERTA] {alerta['signature_name']} | {alerta['source_ip']} -> {alerta['dest_ip']}")
+            guardar_alerta(alerta)
+
+    # store=False: no acumula paquetes en memoria (importante para captura continua)
+    sniff(iface=interfaz, prn=manejar, store=False)
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Motor de captura del IDS")
+    parser.add_argument("--interfaz", "-i", required=True, help="Interfaz de red a capturar (ej. eth0, br-xxxx)")
+    parser.add_argument("--recargar-cada", type=int, default=60, help="Segundos entre recargas de firmas")
+    args = parser.parse_args()
+    iniciar(args.interfaz, args.recargar_cada)
+
+
+if __name__ == "__main__":
+    main()
