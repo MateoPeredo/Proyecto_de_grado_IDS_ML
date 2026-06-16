@@ -57,6 +57,10 @@ services:
       MYSQL_DATABASE: ids
       MYSQL_USER: ids
       MYSQL_PASSWORD: ids_pass
+    # Se expone el puerto al host (127.0.0.1) para que el sensor del IDS,
+    # que corre en network_mode: host, pueda escribir las alertas.
+    ports:
+      - "127.0.0.1:3306:3306"
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
@@ -80,6 +84,10 @@ services:
       nofile:
         soft: 262144
         hard: 262144
+    # Se expone el puerto HTTP al host para que el sensor (network_mode: host)
+    # pueda escribir el tráfico capturado en traffic_raw.
+    ports:
+      - "127.0.0.1:8123:8123"
     volumes:
       - clickhouse-data:/var/lib/clickhouse
     restart: unless-stopped
@@ -92,13 +100,51 @@ services:
     container_name: ids-elasticsearch
     environment:
       discovery.type: single-node
-      xpack.security.enabled: "false"        
-      ES_JAVA_OPTS: "-Xms512m -Xmx512m"       
+      xpack.security.enabled: "false"        # sin auth para entorno de desarrollo
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"       # límite de RAM para la JVM
     volumes:
       - elastic-data:/usr/share/elasticsearch/data
     restart: unless-stopped
     networks:
       - ids-net
+
+  # ── Sensor del IDS (motor de captura) ────────────────────────────────────────
+  # Componente independiente que captura tráfico en modo promiscuo.
+  # Usa la MISMA imagen del backend (tiene el motor, detector y modelos).
+  # network_mode: host -> ve las interfaces de red reales (como un IDS físico
+  # conectado al segmento que vigila). Por eso llega a MySQL vía 127.0.0.1.
+  #
+  # No arranca solo (profile "sensor"): se levanta a propósito cuando se quiere
+  # capturar, para no consumir recursos ni capturar sin querer.
+  sensor:
+    build:
+      context: ./ids-backend
+      dockerfile: Dockerfile
+    image: ids-backend          # reutiliza la imagen ya construida del backend
+    container_name: ids-sensor
+    network_mode: host          # acceso directo a las interfaces del host
+    cap_add:
+      - NET_ADMIN               # permisos para captura en modo promiscuo
+      - NET_RAW
+    environment:
+      # En modo host, MySQL es accesible por el puerto expuesto en 127.0.0.1
+      MYSQL_HOST: 127.0.0.1
+      MYSQL_PORT: "3306"
+      MYSQL_USER: ids
+      MYSQL_PASSWORD: ids_pass
+      MYSQL_DB: ids
+      # ClickHouse también accesible por 127.0.0.1 (para el tráfico del gráfico)
+      CLICKHOUSE_HOST: 127.0.0.1
+      CLICKHOUSE_PORT: "8123"
+      CLICKHOUSE_USER: ids
+      CLICKHOUSE_PASSWORD: ids_pass
+      CLICKHOUSE_DB: ids_metrics
+      # La interfaz a capturar (ajustá según tu laboratorio)
+      IDS_INTERFAZ: ${IDS_INTERFAZ:-br-28e9c1d1b17e}
+    # Lanza el motor de captura en la interfaz indicada
+    command: ["python", "-m", "app.engine.motor", "--interfaz", "${IDS_INTERFAZ:-br-28e9c1d1b17e}"]
+    profiles: ["sensor"]        # no arranca con el 'up' normal
+    restart: "no"
 
 networks:
   ids-net:

@@ -5,8 +5,8 @@ Captura paquetes con Scapy en una interfaz de red, extrae la información de
 comportamiento (sin payload), la pasa al Detector, y guarda las alertas
 resultantes en MySQL.
 
-Requiere privilegios de root y la interfaz en modo promiscuo (un IDS observa 
-todo el tráfico del segmento, no solo el dirigido a él).
+Requiere privilegios de root y la interfaz en modo promiscuo (un IDS observa
+TODO el tráfico del segmento, no solo el dirigido a él).
 
 USO (desde la carpeta ids-backend, como root):
     python -m app.engine.motor --interfaz eth0
@@ -111,18 +111,26 @@ def paquete_a_info(pkt) -> PaqueteInfo | None:
     )
 
 
-def iniciar(interfaz: str, recargar_cada: int = 60):
+def iniciar(interfaz: str, recargar_cada: int = 60, flush_trafico: int = 5):
     """
     Bucle principal: captura en `interfaz` y procesa cada paquete.
+    - Detecta ataques con las firmas (guarda alertas en MySQL).
+    - Acumula conteos de tráfico y los vuelca a ClickHouse cada flush_trafico s.
     Recarga las firmas desde la BD cada `recargar_cada` segundos.
     """
     from scapy.all import sniff
+    from app.engine.agregador import AgregadorTrafico
 
     firmas = cargar_firmas()
     if not firmas:
         print("[motor] ADVERTENCIA: no hay firmas activas en la BD.")
     detector = Detector(firmas)
     print(f"[motor] {len(firmas)} firmas cargadas. Escuchando en {interfaz}...")
+
+    # Agregador de tráfico para el gráfico verde/rojo (corre en su propio hilo)
+    agregador = AgregadorTrafico(flush_segundos=flush_trafico)
+    agregador.iniciar()
+    print(f"[motor] registrando tráfico en ClickHouse cada {flush_trafico}s")
 
     estado = {"ultima_recarga": time.time()}
 
@@ -135,9 +143,15 @@ def iniciar(interfaz: str, recargar_cada: int = 60):
         info = paquete_a_info(pkt)
         if info is None:
             return
-        for alerta in detector.procesar(info):
+
+        # Detección: ¿este paquete dispara alguna alerta?
+        alertas = detector.procesar(info)
+        for alerta in alertas:
             print(f"[ALERTA] {alerta['signature_name']} | {alerta['source_ip']} -> {alerta['dest_ip']}")
             guardar_alerta(alerta)
+
+        # Tráfico: malicioso si disparó alerta, normal si no
+        agregador.registrar(info.protocolo, info.size, malicioso=bool(alertas))
 
     # store=False: no acumula paquetes en memoria (importante para captura continua)
     sniff(iface=interfaz, prn=manejar, store=False)
