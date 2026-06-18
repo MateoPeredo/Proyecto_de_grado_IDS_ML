@@ -100,3 +100,11 @@ export const logsService = {
   deteccion:  (params) => api.get("/logs/deteccion", { params }),
   trafico:    (params) => api.get("/logs/trafico", { params }),
 };
+// ── Signatures (firmas del IDS) ───────────────────────────────────────────────
+export const signaturesService = {
+  getAll: ()             => api.get("/signatures"),
+  create: (firma)        => api.post("/signatures", firma),
+  update: (id, firma)    => api.put(`/signatures/${id}`, firma),
+  toggle: (id, enabled)  => api.patch(`/signatures/${id}`, { enabled }),
+  delete: (id)           => api.delete(`/signatures/${id}`),
+};

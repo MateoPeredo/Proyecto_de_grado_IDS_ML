@@ -11,7 +11,7 @@ from app.db.clickhouse import init_clickhouse
 from app.db.elastic import init_elastic
 from app.models.user import User
 from app.core.security import hash_password
-from app.routers import auth, rules, alerts, monitor, ml, config as config_router, notifications, logs
+from app.routers import auth, rules, alerts, monitor, ml, config as config_router, notifications, logs, signatures
 
 
 def seed_admin():
@@ -84,6 +84,12 @@ async def lifespan(app: FastAPI):
     seed_admin()
     seed_config()
     seed_signatures()
+    # Log de plataforma: el sistema arrancó (registro visible tras cada inicio)
+    try:
+        from app.db.elastic import log_plataforma
+        log_plataforma("sistema_iniciado", "El backend del IDS se inició correctamente")
+    except Exception:
+        pass
     # lanza la limpieza periódica de logs en segundo plano
     tarea = asyncio.create_task(limpieza_periodica())
     yield
@@ -111,6 +117,7 @@ app.include_router(ml.router)
 app.include_router(config_router.router)
 app.include_router(notifications.router)
 app.include_router(logs.router)
+app.include_router(signatures.router)
 
 
 @app.get("/health")

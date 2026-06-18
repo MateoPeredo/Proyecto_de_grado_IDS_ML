@@ -108,3 +108,46 @@ class AlertOut(BaseModel):
     acknowledged: bool
 
     model_config = {"from_attributes": True}
+
+
+# ── Signatures (firmas del IDS) ───────────────────────────────────────────────
+class SignatureCreate(BaseModel):
+    nombre: str
+    tipo_firma: str
+    severidad: str = "medium"
+    umbral: int = 20
+    ventana_segundos: int = 10
+    track_by: str = "src"
+    puerto: Optional[int] = None
+    protocolo: str = "tcp"
+    enabled: bool = True
+    descripcion: Optional[str] = None
+
+
+class SignatureUpdate(BaseModel):
+    nombre: Optional[str] = None
+    tipo_firma: Optional[str] = None
+    severidad: Optional[str] = None
+    umbral: Optional[int] = None
+    ventana_segundos: Optional[int] = None
+    track_by: Optional[str] = None
+    puerto: Optional[int] = None
+    protocolo: Optional[str] = None
+    enabled: Optional[bool] = None
+    descripcion: Optional[str] = None
+
+
+class SignatureOut(BaseModel):
+    id: int
+    nombre: str
+    tipo_firma: str
+    severidad: str
+    umbral: int
+    ventana_segundos: int
+    track_by: str
+    puerto: Optional[int] = None
+    protocolo: str
+    enabled: bool
+    descripcion: Optional[str] = None
+
+    model_config = {"from_attributes": True}

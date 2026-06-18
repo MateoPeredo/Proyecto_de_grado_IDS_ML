@@ -30,6 +30,7 @@ services:
       - path: ./ids-backend/.env
         required: false
     environment:
+      TZ: America/La_Paz
       MYSQL_HOST: mysql
       MYSQL_USER: ids
       MYSQL_PASSWORD: ids_pass
@@ -53,6 +54,7 @@ services:
     image: mysql:8.4
     container_name: ids-mysql
     environment:
+      TZ: America/La_Paz
       MYSQL_ROOT_PASSWORD: root_pass
       MYSQL_DATABASE: ids
       MYSQL_USER: ids
@@ -102,6 +104,10 @@ services:
       discovery.type: single-node
       xpack.security.enabled: "false"        # sin auth para entorno de desarrollo
       ES_JAVA_OPTS: "-Xms512m -Xmx512m"       # límite de RAM para la JVM
+    # Se expone el puerto al host para que el sensor (network_mode: host)
+    # pueda escribir los logs de detección y tráfico.
+    ports:
+      - "127.0.0.1:9200:9200"
     volumes:
       - elastic-data:/usr/share/elasticsearch/data
     restart: unless-stopped
@@ -128,6 +134,7 @@ services:
       - NET_RAW
     environment:
       # En modo host, MySQL es accesible por el puerto expuesto en 127.0.0.1
+      TZ: America/La_Paz
       MYSQL_HOST: 127.0.0.1
       MYSQL_PORT: "3306"
       MYSQL_USER: ids
@@ -139,6 +146,8 @@ services:
       CLICKHOUSE_USER: ids
       CLICKHOUSE_PASSWORD: ids_pass
       CLICKHOUSE_DB: ids_metrics
+      # Elasticsearch accesible por 127.0.0.1 (para logs de detección y tráfico)
+      ELASTIC_HOST: http://127.0.0.1:9200
       # La interfaz a capturar (ajustá según tu laboratorio)
       IDS_INTERFAZ: ${IDS_INTERFAZ:-br-28e9c1d1b17e}
     # Lanza el motor de captura en la interfaz indicada

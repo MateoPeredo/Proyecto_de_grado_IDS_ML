@@ -43,9 +43,11 @@ def cargar_firmas() -> list[Firma]:
 
 def guardar_alerta(alerta: dict):
     """Inserta una alerta detectada en la tabla alerts de MySQL."""
+    from datetime import datetime
     db = SessionLocal()
     try:
         registro = Alert(
+            timestamp=datetime.now(),   # hora local (según TZ del contenedor)
             signature_name=alerta["signature_name"],
             severity=alerta["severity"],
             source_ip=alerta.get("source_ip"),
@@ -111,7 +113,7 @@ def paquete_a_info(pkt) -> PaqueteInfo | None:
     )
 
 
-def iniciar(interfaz: str, recargar_cada: int = 60, flush_trafico: int = 5):
+def iniciar(interfaz: str, recargar_cada: int = 60, flush_trafico: int = 2):
     """
     Bucle principal: captura en `interfaz` y procesa cada paquete.
     - Detecta ataques con las firmas (guarda alertas en MySQL).
@@ -149,9 +151,41 @@ def iniciar(interfaz: str, recargar_cada: int = 60, flush_trafico: int = 5):
         for alerta in alertas:
             print(f"[ALERTA] {alerta['signature_name']} | {alerta['source_ip']} -> {alerta['dest_ip']}")
             guardar_alerta(alerta)
+            # Log de detección a Elasticsearch (una decisión del motor de firmas)
+            try:
+                from app.db.elastic import log_deteccion, log_trafico
+                log_deteccion(
+                    motor="firma", resultado="malicioso",
+                    detalle=f"{alerta['signature_name']}: {alerta['source_ip']} -> {alerta['dest_ip']}",
+                )
+                # El flujo que disparó la alerta se registra como tráfico malicioso (siempre)
+                log_trafico(
+                    ip_origen=info.src_ip, ip_destino=info.dst_ip,
+                    protocolo=info.protocolo, clasificacion="malicioso",
+                    puerto_origen=info.src_port, puerto_destino=info.dst_port,
+                    bytes_=info.size,
+                )
+            except Exception:
+                pass
 
         # Tráfico: malicioso si disparó alerta, normal si no
         agregador.registrar(info.protocolo, info.size, malicioso=bool(alertas))
+
+        # Log de tráfico NORMAL muestreado (1 de cada N) para búsqueda sin saturar ES.
+        # El tráfico malicioso ya se registró arriba con detalle.
+        if not alertas:
+            estado["contador_pkt"] = estado.get("contador_pkt", 0) + 1
+            if estado["contador_pkt"] % 50 == 0:  # 1 de cada 50 paquetes normales
+                try:
+                    from app.db.elastic import log_trafico
+                    log_trafico(
+                        ip_origen=info.src_ip, ip_destino=info.dst_ip,
+                        protocolo=info.protocolo, clasificacion="normal",
+                        puerto_origen=info.src_port, puerto_destino=info.dst_port,
+                        bytes_=info.size,
+                    )
+                except Exception:
+                    pass
 
     # store=False: no acumula paquetes en memoria (importante para captura continua)
     sniff(iface=interfaz, prn=manejar, store=False)

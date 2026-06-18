@@ -19,9 +19,14 @@ bearer = HTTPBearer(auto_error=False)
 def login(body: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == body.username).first()
     if not user or not verify_password(body.password, user.password_hash):
+        from app.db.elastic import log_plataforma
+        log_plataforma("login_fallido", f"Intento de acceso fallido para '{body.username}'", nivel="warning", usuario=body.username)
         raise HTTPException(status_code=401, detail="Credenciales inválidas")
 
     token = create_access_token({"sub": user.username, "role": user.role})
+    # Log de plataforma: inicio de sesión exitoso
+    from app.db.elastic import log_plataforma
+    log_plataforma("login", f"El usuario '{user.username}' inició sesión", usuario=user.username)
     return TokenResponse(access_token=token, username=user.username, role=user.role)
 
 

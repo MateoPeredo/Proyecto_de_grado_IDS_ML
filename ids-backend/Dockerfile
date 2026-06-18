@@ -7,8 +7,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # Dependencias del sistema necesarias para compilar algunos paquetes (bcrypt, etc.)
+# tzdata: necesario para que la variable TZ (zona horaria) funcione correctamente.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential curl \
+    build-essential curl tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 # Instala dependencias Python primero (mejor cache)
