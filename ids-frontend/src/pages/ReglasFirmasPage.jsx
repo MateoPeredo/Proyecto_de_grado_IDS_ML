@@ -3,6 +3,7 @@ import { useStyles } from "../hooks/useStyles";
 import { MetricCard, Toggle, SectionHeader } from "../components/ui/SharedUI";
 import { NavIcon } from "../components/ui/NavIcon";
 import { signaturesService } from "../services/api";
+import { useAuthStore } from "../store/authStore";
 
 // Tipos de firma conductual que el motor sabe interpretar
 const TIPOS_FIRMA = [
@@ -34,6 +35,10 @@ const formVacio = {
 
 export function PageReglas({ t }) {
   const s = useStyles(t);
+  const role = useAuthStore((st) => st.role);
+  // Permisos: developer hace todo; admin solo activa/desactiva; analyst solo ve.
+  const puedeGestionar = role === "developer";              // crear, editar, borrar
+  const puedeToggle    = role === "developer" || role === "admin"; // activar/desactivar
   const [items, setItems]     = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState("");
@@ -132,10 +137,12 @@ export function PageReglas({ t }) {
         {/* Lista */}
         <div style={s.card}>
           <SectionHeader title="Firmas cargadas" badge={`${items.length}`} t={t}>
-            <button onClick={() => (showForm ? cancelar() : setShowForm(true))} style={s.btn("primary")}>
-              <NavIcon name={showForm ? "x" : "plus"} size={14} />
-              {showForm ? "Cancelar" : "Nueva firma"}
-            </button>
+            {puedeGestionar && (
+              <button onClick={() => (showForm ? cancelar() : setShowForm(true))} style={s.btn("primary")}>
+                <NavIcon name={showForm ? "x" : "plus"} size={14} />
+                {showForm ? "Cancelar" : "Nueva firma"}
+              </button>
+            )}
           </SectionHeader>
 
           {loading ? (
@@ -160,11 +167,21 @@ export function PageReglas({ t }) {
                       {f.puerto ? ` · puerto ${f.puerto}` : ""} · {f.protocolo}
                     </div>
                   </div>
-                  <Toggle on={f.enabled} onChange={() => toggle(f)} t={t} />
-                  <button onClick={() => empezarEdicion(f)} style={{ ...s.btn("ghost"), fontSize: 11, padding: "4px 10px" }}>Editar</button>
-                  <button onClick={() => borrar(f.id)} style={{ ...s.btn("ghost"), padding: "4px 6px", border: "none", color: t.text3 }}>
-                    <NavIcon name="x" size={13} />
-                  </button>
+                  {puedeToggle ? (
+                    <Toggle on={f.enabled} onChange={() => toggle(f)} t={t} />
+                  ) : (
+                    <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 8, background: f.enabled ? t.okBg || t.bg2 : t.bg2, color: f.enabled ? t.ok : t.text3 }}>
+                      {f.enabled ? "Activa" : "Inactiva"}
+                    </span>
+                  )}
+                  {puedeGestionar && (
+                    <button onClick={() => empezarEdicion(f)} style={{ ...s.btn("ghost"), fontSize: 11, padding: "4px 10px" }}>Editar</button>
+                  )}
+                  {puedeGestionar && (
+                    <button onClick={() => borrar(f.id)} style={{ ...s.btn("ghost"), padding: "4px 6px", border: "none", color: t.text3 }}>
+                      <NavIcon name="x" size={13} />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

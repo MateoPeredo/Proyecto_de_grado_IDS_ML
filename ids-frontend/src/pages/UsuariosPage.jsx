@@ -107,6 +107,7 @@ export function PageUsuarios({ t }) {
             <select style={s.input} value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
               <option value="analyst">Analista</option>
               <option value="admin">Administrador</option>
+              <option value="developer">Desarrollador</option>
             </select>
           </div>
           <button type="submit" disabled={creando} style={{ ...s.btn("primary"), justifyContent: "center", padding: "10px", opacity: creando ? 0.7 : 1 }}>
@@ -152,10 +153,11 @@ export function PageUsuarios({ t }) {
                       <select style={{ ...s.input, padding: "4px 8px", fontSize: 12 }} value={editRole} onChange={(e) => setEditRole(e.target.value)}>
                         <option value="analyst">Analista</option>
                         <option value="admin">Administrador</option>
+                        <option value="developer">Desarrollador</option>
                       </select>
                     ) : (
-                      <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: u.role === "admin" ? t.accentBg : t.bg3, color: u.role === "admin" ? t.accentTxt : t.text2 }}>
-                        {u.role === "admin" ? "Administrador" : "Analista"}
+                      <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: (u.role === "admin" || u.role === "developer") ? t.accentBg : t.bg3, color: (u.role === "admin" || u.role === "developer") ? t.accentTxt : t.text2 }}>
+                        {u.role === "developer" ? "Desarrollador" : u.role === "admin" ? "Administrador" : "Analista"}
                       </span>
                     )}
                   </td>

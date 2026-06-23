@@ -4,8 +4,6 @@ import { MetricCard, MlBar, SectionHeader } from "../components/ui/SharedUI";
 import { NavIcon } from "../components/ui/NavIcon";
 import { mlService } from "../services/api";
 
-// Página del modelo ML conectada al backend real. Mientras no haya un modelo
-// entrenado y cargado, muestra estado "sin modelo aún" (sin métricas inventadas).
 export function PageML({ t }) {
   const s = useStyles(t);
   const [info, setInfo]       = useState(null);

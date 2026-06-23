@@ -19,6 +19,7 @@ export function AppShell() {
   const { t, mode, toggle } = useTheme();
   const logout               = useAuthStore((s) => s.logout);
   const user                 = useAuthStore((s) => s.user);
+  const role                 = useAuthStore((s) => s.role);
   const { alerts, acknowledge, acknowledgeAll, activeCount } = useAlerts();
 
   const [page,      setPage]      = useState("dashboard");
@@ -45,6 +46,7 @@ export function AppShell() {
         activeCount={activeCount}
         collapsed={collapsed}
         user={user}
+        role={role}
       />
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
@@ -58,7 +60,14 @@ export function AppShell() {
         />
 
         <div style={{ flex: 1, overflowY: "auto", padding: "18px 20px", background: t.bg }}>
-          {pages[page]}
+          {page === "ml" && role !== "developer" ? (
+            <div style={{ padding: 40, textAlign: "center", color: t.text3, fontSize: 14 }}>
+              No tienes permiso para acceder a esta sección.<br />
+              Solo el rol Desarrollador puede ver el modelo de ML.
+            </div>
+          ) : (
+            pages[page]
+          )}
         </div>
 
         {/* Footer */}
@@ -72,8 +81,6 @@ export function AppShell() {
           color: t.text3,
           fontFamily: "monospace",
         }}>
-          <span>SigmaIDS v2.4.1 · Snort 3.x + custom · {activeCount} alertas activas</span>
-          <span>RandomForest · 23 features · latencia ML: 0.8ms</span>
         </div>
       </div>
     </div>

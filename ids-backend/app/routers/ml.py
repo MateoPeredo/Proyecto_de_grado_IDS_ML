@@ -13,12 +13,13 @@ from fastapi.responses import FileResponse, JSONResponse
 
 from app.config import settings
 from app.routers.auth import current_user
+from app.core.permissions import require_roles
 
 router = APIRouter(prefix="/ml", tags=["ml"])
 
 
 @router.get("/metrics")
-def get_metrics(_=Depends(current_user)):
+def get_metrics(_=Depends(require_roles("developer"))):
     # Si más adelante guardas un JSON de métricas junto al modelo, lo lees acá.
     return {
         "model": "RandomForestClassifier",
@@ -32,13 +33,13 @@ def get_metrics(_=Depends(current_user)):
 
 
 @router.post("/retrain")
-def retrain(_=Depends(current_user)):
+def retrain(_=Depends(require_roles("developer"))):
     # Aquí irá el pipeline real: cargar dataset → entrenar RandomForest → joblib.dump
     return {"ok": True, "status": "entrenamiento encolado (placeholder)"}
 
 
 @router.get("/export")
-def export_model(_=Depends(current_user)):
+def export_model(_=Depends(require_roles("developer"))):
     if not os.path.exists(settings.MODEL_PATH):
         return JSONResponse(status_code=404, content={"detail": "No hay modelo para exportar"})
     return FileResponse(

@@ -6,9 +6,7 @@ import { useStyles } from "../hooks/useStyles";
 import { MetricCard, SectionHeader } from "../components/ui/SharedUI";
 import { monitorService } from "../services/api";
 
-// Monitoreo de tráfico en tiempo real, alimentado por ClickHouse.
-// Gráfico de área: tráfico normal (verde) vs malicioso (rojo) sobre el tiempo.
-// Mientras el motor de captura del IDS no envíe datos, se muestra vacío.
+
 export function PageMonitoreo({ t }) {
   const s = useStyles(t);
   const [series, setSeries]   = useState([]);

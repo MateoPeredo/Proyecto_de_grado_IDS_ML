@@ -74,7 +74,7 @@ def register(body: UserCreate, db: Session = Depends(get_db), _: User = Depends(
     nuevo = User(
         username=body.username,
         password_hash=hash_password(body.password),
-        role=body.role if body.role in ("analyst", "admin") else "analyst",
+        role=body.role if body.role in ("analyst", "admin", "developer") else "analyst",
     )
     db.add(nuevo)
     db.commit()
@@ -100,7 +100,7 @@ def update_user(
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
     if body.role is not None:
-        if body.role not in ("analyst", "admin"):
+        if body.role not in ("analyst", "admin", "developer"):
             raise HTTPException(status_code=400, detail="Rol inválido")
         # Evita quitarle admin al último administrador
         if user.role == "admin" and body.role != "admin":

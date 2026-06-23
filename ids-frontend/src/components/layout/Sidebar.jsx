@@ -1,7 +1,10 @@
 import { NAV_ITEMS } from "../../utils/theme";
 import { NavIcon } from "../ui/NavIcon";
 
-export function Sidebar({ t, page, onNavigate, activeCount, collapsed, user }) {
+export function Sidebar({ t, page, onNavigate, activeCount, collapsed, user, role }) {
+  // Filtra los items según el rol: si un item define 'roles', solo se muestra
+  // a esos roles. Los items sin 'roles' los ven todos.
+  const itemsVisibles = NAV_ITEMS.filter((n) => !n.roles || n.roles.includes(role));
   return (
     <div style={{
       width: collapsed ? 52 : 224,
@@ -42,7 +45,7 @@ export function Sidebar({ t, page, onNavigate, activeCount, collapsed, user }) {
 
       {/* Nav items */}
       <nav style={{ flex: 1, padding: "8px 0", overflowY: "auto", overflowX: "hidden" }}>
-        {NAV_ITEMS.map((n) => {
+        {itemsVisibles.map((n) => {
           const isActive  = page === n.id;
           const hasBadge  = n.id === "alertas" && activeCount > 0;
           return (
