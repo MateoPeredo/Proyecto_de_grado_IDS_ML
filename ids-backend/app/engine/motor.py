@@ -21,6 +21,9 @@ from app.db.mysql import SessionLocal
 from app.models.ids_signature import IDSSignature
 from app.models.alert import Alert
 from app.engine.detector import Detector, Firma, PaqueteInfo
+from app.engine.flujo import ConstructorFlujo
+from app.ml.verificador import VerificadorML
+from app.ml import gestor
 
 
 def cargar_firmas() -> list[Firma]:
@@ -46,6 +49,19 @@ def guardar_alerta(alerta: dict):
     from datetime import datetime
     db = SessionLocal()
     try:
+        # Si el ML verificó la alerta, lo anexamos a la descripción y al detected_by
+        descripcion = alerta.get("description", "")
+        ml = alerta.get("ml")
+        detected_by = alerta.get("detected_by", "firma")
+        if ml and ml.get("disponible"):
+            conf = ml.get("confianza")
+            conf_txt = f"{conf*100:.0f}%" if conf is not None else "s/d"
+            descripcion += (
+                f" | ML: {ml.get('clase')} (confianza {conf_txt}) "
+                f"[{ml.get('modelo')}]"
+            )
+            detected_by = "firma+ml"   # confirmada por las dos etapas
+
         registro = Alert(
             timestamp=datetime.now(),   # hora local (según TZ del contenedor)
             signature_name=alerta["signature_name"],
@@ -53,8 +69,8 @@ def guardar_alerta(alerta: dict):
             source_ip=alerta.get("source_ip"),
             dest_ip=alerta.get("dest_ip"),
             protocol=alerta.get("protocol"),
-            description=alerta.get("description"),
-            detected_by=alerta.get("detected_by", "firma"),
+            description=descripcion,
+            detected_by=detected_by,
         )
         db.add(registro)
         db.commit()
@@ -134,7 +150,18 @@ def iniciar(interfaz: str, recargar_cada: int = 60, flush_trafico: int = 2):
     agregador.iniciar()
     print(f"[motor] registrando tráfico en ClickHouse cada {flush_trafico}s")
 
-    estado = {"ultima_recarga": time.time()}
+    # ── Segunda etapa: constructor de flujo + verificador ML ─────────────────
+    # El constructor acumula estadísticas de cada flujo para poder calcular las
+    # 15 features cuando una firma dispara. El verificador carga el modelo activo.
+    constructor = ConstructorFlujo(ventana_segundos=120)
+    ruta_modelo = gestor.ruta_activo()
+    verificador = VerificadorML(ruta_modelo or "")
+    if verificador.disponible():
+        print(f"[motor] modelo ML activo: {verificador.info().get('nombre_modelo')}")
+    else:
+        print("[motor] sin modelo ML activo: las alertas de firma se guardan sin verificación.")
+
+    estado = {"ultima_recarga": time.time(), "ultima_recarga_modelo": time.time()}
 
     def manejar(pkt):
         # recargar firmas periódicamente (por si se editaron en la BD)
@@ -142,23 +169,75 @@ def iniciar(interfaz: str, recargar_cada: int = 60, flush_trafico: int = 2):
             detector.actualizar_firmas(cargar_firmas())
             estado["ultima_recarga"] = time.time()
 
+        # recargar el modelo activo periódicamente (por si el usuario lo cambió)
+        if time.time() - estado["ultima_recarga_modelo"] > 30:
+            ruta = gestor.ruta_activo()
+            if ruta != verificador.ruta_modelo:
+                verificador.recargar(ruta or "")
+                if verificador.disponible():
+                    print(f"[motor] modelo ML recargado: {verificador.info().get('nombre_modelo')}")
+            estado["ultima_recarga_modelo"] = time.time()
+
         info = paquete_a_info(pkt)
         if info is None:
             return
 
-        # Detección: ¿este paquete dispara alguna alerta?
+        # Acumular el paquete en el constructor de flujo (para la 2da etapa)
+        constructor.registrar(info)
+
+        # ETAPA 1 — Detección por firmas: ¿este paquete dispara alguna alerta?
         alertas = detector.procesar(info)
         for alerta in alertas:
-            print(f"[ALERTA] {alerta['signature_name']} | {alerta['source_ip']} -> {alerta['dest_ip']}")
+            # ETAPA 2 — Verificación ML: solo si hay modelo activo
+            ml_resultado = None
+            if verificador.disponible():
+                features = constructor.features_para(
+                    alerta.get("source_ip"), alerta.get("dest_ip")
+                )
+                if features is not None:
+                    ml_resultado = verificador.verificar(features)
+
+            # Decisión del double-check:
+            # - Si el ML está disponible y dice BENIGN -> es falso positivo: DESCARTAR
+            # - Si el ML confirma ataque, o no hay ML/flujo -> CONSERVAR la alerta
+            if ml_resultado and ml_resultado.get("disponible") and not ml_resultado.get("es_ataque"):
+                conf = ml_resultado.get("confianza")
+                conf_txt = f"{conf*100:.0f}%" if conf is not None else "s/d"
+                print(f"[DESCARTADA] {alerta['signature_name']} | "
+                      f"{alerta['source_ip']} -> {alerta['dest_ip']} "
+                      f"| ML dice BENIGN ({conf_txt}): falso positivo")
+                # Log de la decisión de descarte (opcional, no rompe si falla)
+                try:
+                    from app.db.elastic import log_deteccion
+                    log_deteccion(
+                        motor="firma+ml", resultado="descartada",
+                        detalle=(f"{alerta['signature_name']} descartada por ML "
+                                 f"(BENIGN {conf_txt}): {alerta['source_ip']}"),
+                    )
+                except Exception:
+                    pass
+                # Falso positivo: NO se guarda la alerta
+                continue
+
+            # Confirmada (por ML o sin ML disponible): guardar
+            alerta["ml"] = ml_resultado
+            etiqueta_ml = ""
+            if ml_resultado and ml_resultado.get("disponible"):
+                conf = ml_resultado.get("confianza")
+                conf_txt = f"{conf*100:.0f}%" if conf is not None else "s/d"
+                etiqueta_ml = f" | ML confirma: {ml_resultado.get('clase')} ({conf_txt})"
+            print(f"[ALERTA] {alerta['signature_name']} | "
+                  f"{alerta['source_ip']} -> {alerta['dest_ip']}{etiqueta_ml}")
             guardar_alerta(alerta)
-            # Log de detección a Elasticsearch (una decisión del motor de firmas)
+
+            # Log de detección a Elasticsearch
             try:
                 from app.db.elastic import log_deteccion, log_trafico
                 log_deteccion(
-                    motor="firma", resultado="malicioso",
-                    detalle=f"{alerta['signature_name']}: {alerta['source_ip']} -> {alerta['dest_ip']}",
+                    motor="firma+ml" if (ml_resultado and ml_resultado.get("disponible")) else "firma",
+                    resultado="malicioso",
+                    detalle=f"{alerta['signature_name']}: {alerta['source_ip']} -> {alerta['dest_ip']}{etiqueta_ml}",
                 )
-                # El flujo que disparó la alerta se registra como tráfico malicioso (siempre)
                 log_trafico(
                     ip_origen=info.src_ip, ip_destino=info.dst_ip,
                     protocolo=info.protocolo, clasificacion="malicioso",
@@ -172,7 +251,6 @@ def iniciar(interfaz: str, recargar_cada: int = 60, flush_trafico: int = 2):
         agregador.registrar(info.protocolo, info.size, malicioso=bool(alertas))
 
         # Log de tráfico NORMAL muestreado (1 de cada N) para búsqueda sin saturar ES.
-        # El tráfico malicioso ya se registró arriba con detalle.
         if not alertas:
             estado["contador_pkt"] = estado.get("contador_pkt", 0) + 1
             if estado["contador_pkt"] % 50 == 0:  # 1 de cada 50 paquetes normales

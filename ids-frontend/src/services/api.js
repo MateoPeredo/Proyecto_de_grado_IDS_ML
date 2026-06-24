@@ -19,7 +19,7 @@ let sesionExpiradaNotificada = false;
 
 api.interceptors.response.use(
   (res) => {
-    
+
     sesionExpiradaNotificada = false;
     return res;
   },
@@ -28,7 +28,7 @@ api.interceptors.response.use(
       localStorage.removeItem("ids_token");
       localStorage.removeItem("ids_user");
       localStorage.removeItem("ids_role");
-      
+
       if (!sesionExpiradaNotificada) {
         sesionExpiradaNotificada = true;
         window.dispatchEvent(new Event("ids:sesion-expirada"));
@@ -68,8 +68,18 @@ export const rulesService = {
 // ── ML ───────────────────────────────────────────────────────────────────────
 export const mlService = {
   getMetrics: () => api.get("/ml/metrics"),
-  retrain:    () => api.post("/ml/retrain"),
   exportModel:() => api.get("/ml/export", { responseType: "blob" }),
+  listarModelos: () => api.get("/ml/modelos"),
+  subirModelo: (file) => {
+    const fd = new FormData();
+    fd.append("archivo", file);
+    return api.post("/ml/modelos", fd, {
+      headers: { "Content-Type": "multipart/form-data" },
+      timeout: 120000,
+    });
+  },
+  activarModelo: (archivo) => api.post("/ml/modelos/activar", { archivo }),
+  eliminarModelo: (archivo) => api.delete(`/ml/modelos/${encodeURIComponent(archivo)}`),
 };
 
 // ── Monitor ──────────────────────────────────────────────────────────────────
@@ -77,6 +87,11 @@ export const monitorService = {
   getStats:       (minutes) => api.get("/monitor/stats", { params: { minutes } }),
   getAlertsTimeline: (hours) => api.get("/monitor/alerts-timeline", { params: { hours } }),
   getProtocols:   (hours)   => api.get("/monitor/protocols", { params: { hours } }),
+  getProtocolosTrafico: (minutes) => api.get("/monitor/protocolos-trafico", { params: { minutes } }),
+  getResumen:     ()        => api.get("/monitor/resumen"),
+  getTiposAtaque: ()        => api.get("/monitor/tipos-ataque"),
+  getTopAtacantes:()        => api.get("/monitor/top-atacantes"),
+  getVerificacionML: ()     => api.get("/monitor/verificacion-ml"),
 };
 
 // ── Config del IDS ───────────────────────────────────────────────────────────
@@ -100,6 +115,7 @@ export const logsService = {
   deteccion:  (params) => api.get("/logs/deteccion", { params }),
   trafico:    (params) => api.get("/logs/trafico", { params }),
 };
+
 // ── Signatures (firmas del IDS) ───────────────────────────────────────────────
 export const signaturesService = {
   getAll: ()             => api.get("/signatures"),

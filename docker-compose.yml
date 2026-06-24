@@ -150,6 +150,10 @@ services:
       ELASTIC_HOST: http://127.0.0.1:9200
       # La interfaz a capturar (ajustá según tu laboratorio)
       IDS_INTERFAZ: ${IDS_INTERFAZ:-br-28e9c1d1b17e}
+      # Carpeta de modelos (compartida con el backend vía volumen)
+      MODELS_DIR: /app/app/ml/modelos
+    volumes:
+      - models-data:/app/app/ml/modelos
     # Lanza el motor de captura en la interfaz indicada
     command: ["python", "-m", "app.engine.motor", "--interfaz", "${IDS_INTERFAZ:-br-28e9c1d1b17e}"]
     profiles: ["sensor"]        # no arranca con el 'up' normal
@@ -163,3 +167,4 @@ volumes:
   mysql-data:
   clickhouse-data:
   elastic-data:
+  models-data:

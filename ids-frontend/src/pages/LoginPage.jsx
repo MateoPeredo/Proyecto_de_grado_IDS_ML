@@ -79,7 +79,7 @@ export function LoginPage({ t, mode, onToggleTheme, onLogin }) {
               SigmaIDS
             </div>
             <div style={{ fontSize: 11, color: t.text3, fontFamily: "monospace" }}>
-              ML-Enhanced · v2.4.1
+              Detección de intrusiones con Machine Learning
             </div>
           </div>
         </div>

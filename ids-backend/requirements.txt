@@ -19,8 +19,9 @@ clickhouse-connect==0.8.11
 # ── Elasticsearch (logs, captura de tráfico, alertas) ────────────────────────
 elasticsearch==8.15.1
 
-# ── Machine Learning (Random Forest del IDS) ─────────────────────────────────
+# ──              Machine Learning            ─────────────────────────────────
 scikit-learn==1.6.0
+xgboost==2.1.3                   
 pandas==2.2.3
 numpy==2.2.1
 joblib==1.4.2
