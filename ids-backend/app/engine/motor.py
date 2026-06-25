@@ -230,6 +230,16 @@ def iniciar(interfaz: str, recargar_cada: int = 60, flush_trafico: int = 2):
                   f"{alerta['source_ip']} -> {alerta['dest_ip']}{etiqueta_ml}")
             guardar_alerta(alerta)
 
+            # Notificación por correo (con anti-avalancha). El tipo de ataque
+            # se toma de la clase del ML si está disponible; si no, queda "any".
+            try:
+                if ml_resultado and ml_resultado.get("disponible"):
+                    alerta["tipo_ataque"] = ml_resultado.get("clase", "")
+                from app.services.notificador import despachar_notificaciones
+                despachar_notificaciones(alerta)
+            except Exception:
+                pass
+
             # Log de detección a Elasticsearch
             try:
                 from app.db.elastic import log_deteccion, log_trafico
