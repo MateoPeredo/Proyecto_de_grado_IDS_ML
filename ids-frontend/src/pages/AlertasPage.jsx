@@ -79,7 +79,7 @@ export function PageAlertas({ alerts, onAck, onAckAll, t }) {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 680 }}>
             <thead>
               <tr>
-                {["Hora", "IP Origen", "IP Destino", "Firma", "Protocolo", "Detectado por", "Severidad", "Estado", ""].map((h) => (
+                {["Hora", "IP Origen", "IP Destino", "Firma", "Protocolo", "Detectado por", "Validación ML", "Severidad", "Estado", ""].map((h) => (
                   <th key={h} style={{ textAlign: "left", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.6px", color: t.text3, padding: "0 10px 10px 0", fontWeight: 500, whiteSpace: "nowrap" }}>
                     {h}
                   </th>
@@ -95,6 +95,35 @@ export function PageAlertas({ alerts, onAck, onAckAll, t }) {
                   <td style={{ padding: "8px 10px 8px 0", borderBottom: `0.5px solid ${t.border}`, color: t.text }}>{a.signature_name}</td>
                   <td style={{ padding: "8px 10px 8px 0", fontFamily: "monospace", fontSize: 11, borderBottom: `0.5px solid ${t.border}`, color: t.text3 }}>{a.protocol ?? "—"}</td>
                   <td style={{ padding: "8px 10px 8px 0", fontFamily: "monospace", fontSize: 11, borderBottom: `0.5px solid ${t.border}`, color: t.text3 }}>{a.detected_by}</td>
+                  <td style={{ padding: "8px 10px 8px 0", borderBottom: `0.5px solid ${t.border}` }}>
+                    {(() => {
+                      const estado = a.ml_estado || (a.ml_validado ? "confirmado" : "sin_ml");
+                      const conf = a.ml_confianza != null ? ` ${a.ml_confianza}%` : "";
+                      if (estado === "confirmado") {
+                        return (
+                          <span style={{
+                            display: "inline-flex", alignItems: "center", gap: 4,
+                            fontSize: 11, fontWeight: 600, color: "#16a34a",
+                            background: "#16a34a18", padding: "2px 8px", borderRadius: 6, whiteSpace: "nowrap",
+                          }} title="El modelo ML confirma que es un ataque (las dos etapas coinciden)">
+                            ✓ ML confirma{conf}
+                          </span>
+                        );
+                      }
+                      if (estado === "no_concluyente") {
+                        return (
+                          <span style={{
+                            display: "inline-flex", alignItems: "center", gap: 4,
+                            fontSize: 11, fontWeight: 600, color: "#d97706",
+                            background: "#d9770618", padding: "2px 8px", borderRadius: 6, whiteSpace: "nowrap",
+                          }} title="El ML no superó el umbral para vetar; la alerta se conserva por la firma">
+                            ⚠ No concluyente{conf}
+                          </span>
+                        );
+                      }
+                      return <span style={{ fontSize: 11, color: t.text3 }}>— sin ML</span>;
+                    })()}
+                  </td>
                   <td style={{ padding: "8px 10px 8px 0", borderBottom: `0.5px solid ${t.border}` }}><SevBadge sev={a.severity} t={t} /></td>
                   <td style={{ padding: "8px 10px 8px 0", borderBottom: `0.5px solid ${t.border}` }}>
                     <span style={s.badge(a.acknowledged ? "default" : "danger")}>

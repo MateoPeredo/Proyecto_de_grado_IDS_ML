@@ -19,6 +19,8 @@ export function PageLogs({ t }) {
   // filtros de búsqueda para tráfico
   const [filtroIp, setFiltroIp]       = useState("");
   const [filtroProto, setFiltroProto] = useState("");
+  // buscador de texto para plataforma y detección (filtra sobre lo ya cargado)
+  const [busqueda, setBusqueda] = useState("");
 
   const cargar = async () => {
     setLoading(true);
@@ -40,7 +42,16 @@ export function PageLogs({ t }) {
     }
   };
 
-  useEffect(() => { cargar(); /* eslint-disable-next-line */ }, [tab]);
+  useEffect(() => { setBusqueda(""); cargar(); /* eslint-disable-next-line */ }, [tab]);
+
+  // Filtrado por texto (cliente) para plataforma y detección: busca en todos los campos
+  const filasFiltradas = (() => {
+    if (tab === "trafico" || !busqueda.trim()) return rows;
+    const q = busqueda.trim().toLowerCase();
+    return rows.filter((r) =>
+      Object.values(r).some((v) => v != null && String(v).toLowerCase().includes(q))
+    );
+  })();
 
   const fmt = (ts) => {
     if (!ts) return "—";
@@ -109,10 +120,27 @@ export function PageLogs({ t }) {
         </div>
       )}
 
+      {/* Buscador de texto (plataforma y detección) */}
+      {tab !== "trafico" && (
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <input
+            style={{ ...s.input, maxWidth: 320 }}
+            placeholder="Buscar en los logs (usuario, evento, mensaje...)"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+          />
+          {busqueda && (
+            <button onClick={() => setBusqueda("")} style={{ ...s.btn("ghost"), fontSize: 12 }}>
+              Limpiar
+            </button>
+          )}
+        </div>
+      )}
+
       <div style={s.card}>
         <SectionHeader
           title={`Logs — ${TABS.find((x) => x.id === tab).label}`}
-          badge={`${rows.length}`}
+          badge={`${filasFiltradas.length}`}
           t={t}
         >
           <button onClick={cargar} style={{ ...s.btn("ghost"), fontSize: 12 }}>
@@ -122,9 +150,11 @@ export function PageLogs({ t }) {
 
         {loading ? (
           <div style={{ padding: 20, textAlign: "center", color: t.text3, fontSize: 13 }}>Cargando...</div>
-        ) : rows.length === 0 ? (
+        ) : filasFiltradas.length === 0 ? (
           <div style={{ padding: 28, textAlign: "center", color: t.text3, fontSize: 13 }}>
-            Sin registros aún. Los logs aparecerán cuando el sistema y el motor del IDS generen actividad.
+            {busqueda.trim()
+              ? "Sin resultados para la búsqueda."
+              : "Sin registros aún. Los logs aparecerán cuando el sistema y el motor del IDS generen actividad."}
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
@@ -139,7 +169,7 @@ export function PageLogs({ t }) {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
+                {filasFiltradas.map((r) => (
                   <tr key={r.id}>
                     {columnas.map((c) => (
                       <td key={c.k} style={{ padding: "8px 10px 8px 0", borderBottom: `0.5px solid ${t.border}`, color: t.text2, fontFamily: c.k.includes("ip") || c.k === "timestamp" ? "monospace" : "inherit", fontSize: 11, whiteSpace: "nowrap" }}>

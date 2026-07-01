@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   AreaChart, Area, BarChart, Bar, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { useStyles } from "../hooks/useStyles";
 import { MetricCard, SectionHeader } from "../components/ui/SharedUI";
@@ -15,6 +15,31 @@ function BotonRefresh({ onClick, t, s }) {
     <button onClick={onClick} style={{ ...s.btn("ghost"), fontSize: 11, padding: "4px 10px" }}>
       <NavIcon name="refresh" size={12} /> Recargar
     </button>
+  );
+}
+
+function GraficoTrafico({ datos, dataKey, nombre, color, gradId, t, hayDatos }) {
+  return (
+    <div style={{ width: "100%", height: 260 }}>
+      <ResponsiveContainer>
+        <AreaChart data={datos} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+          <defs>
+            <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%"  stopColor={color} stopOpacity={0.7} />
+              <stop offset="95%" stopColor={color} stopOpacity={0.08} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke={t.border} />
+          <XAxis dataKey="ts" tick={{ fontSize: 11, fill: t.text3 }} />
+          <YAxis tick={{ fontSize: 11, fill: t.text3 }} allowDecimals={false}
+                 domain={[0, hayDatos ? "auto" : 1000]}
+                 label={{ value: "Flujos", angle: -90, position: "insideLeft", fill: t.text3, fontSize: 11 }} />
+          <Tooltip contentStyle={{ background: t.bg2, border: `1px solid ${t.border}`, borderRadius: 8, fontSize: 12 }} />
+          <Area type="monotone" dataKey={dataKey} name={nombre} stroke={color}
+                fill={`url(#${gradId})`} strokeWidth={2} />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 
@@ -45,12 +70,12 @@ export function PageMonitoreo({ t }) {
   const totalMalicioso = series.reduce((a, p) => a + (p.maliciosos || 0), 0);
   const totalPaquetes = series.reduce((a, p) => a + (p.packets || 0), 0);
 
-  const datosGrafico = series.length > 0
+  const hayDatos = series.length > 0;
+  const datosGrafico = hayDatos
     ? series
     : [{ ts: "", normales: 0, maliciosos: 0, packets: 0 },
        { ts: "", normales: 0, maliciosos: 0, packets: 0 }];
 
-  // Protocolos: si está vacío, placeholder para que el gráfico se vea igual
   const protosGrafico = protos.length > 0 ? protos : [{ protocol: "—", packets: 0, bytes: 0 }];
 
   return (
@@ -69,37 +94,31 @@ export function PageMonitoreo({ t }) {
         <MetricCard label="Protocolos"        value={protos.length}  color={t.warn}   t={t} />
       </div>
 
-      <div style={s.card}>
-        <SectionHeader title="Captura de tráfico en tiempo real" badge="1 min" t={t}>
-          <BotonRefresh onClick={cargarTrafico} t={t} s={s} />
-        </SectionHeader>
-        {loading ? (
-          <div style={{ padding: 40, textAlign: "center", color: t.text3, fontSize: 13 }}>Cargando...</div>
-        ) : (
-          <div style={{ width: "100%", height: 320 }}>
-            <ResponsiveContainer>
-              <AreaChart data={datosGrafico} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="gNormal" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="#16a34a" stopOpacity={0.7} />
-                    <stop offset="95%" stopColor="#16a34a" stopOpacity={0.1} />
-                  </linearGradient>
-                  <linearGradient id="gMalicioso" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="#dc2626" stopOpacity={0.7} />
-                    <stop offset="95%" stopColor="#dc2626" stopOpacity={0.1} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke={t.border} />
-                <XAxis dataKey="ts" tick={{ fontSize: 11, fill: t.text3 }} />
-                <YAxis tick={{ fontSize: 11, fill: t.text3 }} domain={[0, series.length > 0 ? "auto" : 1000]} label={{ value: "Flujos", angle: -90, position: "insideLeft", fill: t.text3, fontSize: 11 }} />
-                <Tooltip contentStyle={{ background: t.bg2, border: `1px solid ${t.border}`, borderRadius: 8, fontSize: 12 }} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Area type="monotone" dataKey="normales"   name="Tráfico normal"    stroke="#16a34a" fill="url(#gNormal)"    strokeWidth={2} />
-                <Area type="monotone" dataKey="maliciosos" name="Tráfico malicioso" stroke="#dc2626" fill="url(#gMalicioso)" strokeWidth={2} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        )}
+      {/* Tráfico NORMAL y ANÓMALO  */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(340px,1fr))", gap: 14 }}>
+        <div style={s.card}>
+          <SectionHeader title="Tráfico normal en tiempo real" badge="1 min" badgeVariant="live" t={t}>
+            <BotonRefresh onClick={cargarTrafico} t={t} s={s} />
+          </SectionHeader>
+          {loading ? (
+            <div style={{ padding: 40, textAlign: "center", color: t.text3, fontSize: 13 }}>Cargando...</div>
+          ) : (
+            <GraficoTrafico datos={datosGrafico} dataKey="normales" nombre="Tráfico normal"
+              color="#16a34a" gradId="gNormal" t={t} hayDatos={hayDatos} />
+          )}
+        </div>
+
+        <div style={s.card}>
+          <SectionHeader title="Tráfico anómalo en tiempo real" badge="1 min" badgeVariant="danger" t={t}>
+            <BotonRefresh onClick={cargarTrafico} t={t} s={s} />
+          </SectionHeader>
+          {loading ? (
+            <div style={{ padding: 40, textAlign: "center", color: t.text3, fontSize: 13 }}>Cargando...</div>
+          ) : (
+            <GraficoTrafico datos={datosGrafico} dataKey="maliciosos" nombre="Tráfico anómalo"
+              color="#dc2626" gradId="gMalicioso" t={t} hayDatos={hayDatos} />
+          )}
+        </div>
       </div>
 
       <div style={s.card}>

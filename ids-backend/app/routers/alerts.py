@@ -12,6 +12,7 @@ from app.db.mysql import get_db
 from app.models.alert import Alert
 from app.schemas import AlertOut
 from app.routers.auth import current_user
+from app.core.auditoria import auditar
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
@@ -30,17 +31,19 @@ def get_alerts(
 
 
 @router.patch("/{alert_id}/ack")
-def acknowledge(alert_id: int, db: Session = Depends(get_db), _=Depends(current_user)):
+def acknowledge(alert_id: int, db: Session = Depends(get_db), usuario=Depends(current_user)):
     alert = db.get(Alert, alert_id)
     if not alert:
         raise HTTPException(status_code=404, detail="Alerta no encontrada")
     alert.acknowledged = True
     db.commit()
+    auditar(usuario, "alerta_reconocida", f"Reconoció la alerta #{alert_id}")
     return {"ok": True, "id": alert_id}
 
 
 @router.post("/ack-all")
-def acknowledge_all(db: Session = Depends(get_db), _=Depends(current_user)):
+def acknowledge_all(db: Session = Depends(get_db), usuario=Depends(current_user)):
     db.query(Alert).filter(Alert.acknowledged == False).update({"acknowledged": True})
     db.commit()
+    auditar(usuario, "alertas_reconocidas", "Reconoció todas las alertas activas")
     return {"ok": True}

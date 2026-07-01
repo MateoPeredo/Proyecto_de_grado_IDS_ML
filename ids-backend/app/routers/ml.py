@@ -20,6 +20,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from app.routers.auth import current_user
 from app.core.permissions import require_roles
 from app.ml import gestor
+from app.core.auditoria import auditar
 
 router = APIRouter(prefix="/ml", tags=["ml"])
 
@@ -53,7 +54,7 @@ def listar_modelos(_=Depends(require_roles("developer"))):
 @router.post("/modelos")
 async def subir_modelo(
     archivo: UploadFile = File(...),
-    _=Depends(require_roles("developer")),
+    usuario=Depends(require_roles("developer")),
 ):
     """Sube un .pkl, lo valida y lo registra. Si es el primero, queda activo."""
     sufijo = os.path.splitext(archivo.filename or "modelo.pkl")[1] or ".pkl"
@@ -69,6 +70,7 @@ async def subir_modelo(
             return JSONResponse(status_code=400, content={"detail": info})
 
         entrada = gestor.guardar(tmp, archivo.filename or "modelo.pkl")
+        auditar(usuario, "modelo_subido", f"Subió el modelo '{entrada.get('nombre_modelo', archivo.filename)}'")
         return {"ok": True, "modelo": entrada}
     except Exception as e:
         if os.path.exists(tmp):
@@ -77,21 +79,23 @@ async def subir_modelo(
 
 
 @router.post("/modelos/activar")
-def activar_modelo(payload: dict, _=Depends(require_roles("developer"))):
+def activar_modelo(payload: dict, usuario=Depends(require_roles("developer"))):
     """Elige cuál modelo usar como segunda etapa. Body: {"archivo": "..."}."""
     archivo = payload.get("archivo")
     if not archivo:
         return JSONResponse(status_code=400, content={"detail": "Falta 'archivo'."})
     if not gestor.activar(archivo):
         return JSONResponse(status_code=404, content={"detail": "Ese modelo no existe."})
+    auditar(usuario, "modelo_activado", f"Activó el modelo '{archivo}' como segunda etapa")
     return {"ok": True, "activo": archivo}
 
 
 @router.delete("/modelos/{archivo}")
-def eliminar_modelo(archivo: str, _=Depends(require_roles("developer"))):
+def eliminar_modelo(archivo: str, usuario=Depends(require_roles("developer"))):
     """Elimina un modelo subido."""
     if not gestor.eliminar(archivo):
         return JSONResponse(status_code=404, content={"detail": "Ese modelo no existe."})
+    auditar(usuario, "modelo_eliminado", f"Eliminó el modelo '{archivo}'", nivel="warning")
     return {"ok": True}
 
 

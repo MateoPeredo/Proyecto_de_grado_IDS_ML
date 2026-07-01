@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.db.mysql import get_db
 from app.models.user import User
+from app.core.auditoria import auditar
 from app.core.security import verify_password, create_access_token, decode_token, hash_password
 from app.schemas import LoginRequest, TokenResponse, UserCreate, UserOut, UserUpdate
 
@@ -60,7 +61,7 @@ def me(user: User = Depends(current_user)):
 
 # ── Registro / gestión de usuarios ───────────────────────────────────────────
 @router.post("/register", response_model=UserOut, status_code=201)
-def register(body: UserCreate, db: Session = Depends(get_db), _: User = Depends(current_user)):
+def register(body: UserCreate, db: Session = Depends(get_db), usuario: User = Depends(current_user)):
     """
     Crea un nuevo usuario. Requiere estar autenticado (solo un usuario logueado
     puede dar de alta a otros). El primer usuario 'admin' lo crea el backend al arrancar.
@@ -79,6 +80,7 @@ def register(body: UserCreate, db: Session = Depends(get_db), _: User = Depends(
     db.add(nuevo)
     db.commit()
     db.refresh(nuevo)
+    auditar(usuario, "usuario_creado", f"Creó el usuario '{nuevo.username}' con rol {nuevo.role}")
     return nuevo
 
 
@@ -92,7 +94,7 @@ def update_user(
     user_id: int,
     body: UserUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(current_user),
+    usuario: User = Depends(current_user),
 ):
     """Edita el rol y/o la contraseña de un usuario."""
     user = db.get(User, user_id)
@@ -116,6 +118,7 @@ def update_user(
 
     db.commit()
     db.refresh(user)
+    auditar(usuario, "usuario_editado", f"Editó el usuario '{user.username}'")
     return user
 
 
@@ -137,6 +140,8 @@ def delete_user(
         admins = db.query(User).filter(User.role == "admin").count()
         if admins <= 1:
             raise HTTPException(status_code=400, detail="No se puede eliminar el último administrador")
+    nombre_borrado = user.username
     db.delete(user)
     db.commit()
+    auditar(actual, "usuario_eliminado", f"Eliminó el usuario '{nombre_borrado}'", nivel="warning")
     return {"ok": True}

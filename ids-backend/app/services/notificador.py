@@ -72,8 +72,30 @@ def _enviar_en_hilo(destinatarios: list[str], alerta: dict):
         try:
             enviar_alerta_email(dest, alerta)
             print(f"[notif] aviso enviado a {dest} por '{alerta.get('signature_name')}'")
+            # Registrar en Logs > Plataforma que se envió una notificación
+            try:
+                from app.db.elastic import log_plataforma
+                ml = alerta.get("ml") or {}
+                conf = ml.get("confianza") if ml.get("disponible") else None
+                detalle_ml = f" (validado por ML {conf*100:.0f}%)" if conf is not None else ""
+                log_plataforma(
+                    "notificacion_enviada",
+                    f"Se envió notificación a {dest} por la alerta "
+                    f"'{alerta.get('signature_name')}' desde {alerta.get('source_ip')}{detalle_ml}",
+                )
+            except Exception:
+                pass
         except EmailError as e:
             print(f"[notif] no se pudo enviar a {dest}: {e}")
+            try:
+                from app.db.elastic import log_plataforma
+                log_plataforma(
+                    "notificacion_fallida",
+                    f"No se pudo enviar notificación a {dest}: {e}",
+                    nivel="warning",
+                )
+            except Exception:
+                pass
         except Exception as e:
             print(f"[notif] error inesperado enviando a {dest}: {e}")
 

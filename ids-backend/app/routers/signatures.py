@@ -14,6 +14,7 @@ from app.models.ids_signature import IDSSignature, TIPOS_FIRMA
 from app.schemas import SignatureCreate, SignatureUpdate, SignatureOut
 from app.routers.auth import current_user
 from app.core.permissions import require_roles
+from app.core.auditoria import auditar
 
 router = APIRouter(prefix="/signatures", tags=["signatures"])
 
@@ -40,7 +41,7 @@ def list_signatures(db: Session = Depends(get_db), _=Depends(current_user)):
 
 
 @router.post("", response_model=SignatureOut, status_code=201)
-def create_signature(body: SignatureCreate, db: Session = Depends(get_db), _=Depends(require_roles("developer"))):
+def create_signature(body: SignatureCreate, db: Session = Depends(get_db), usuario=Depends(require_roles("developer"))):
     _validar(body.tipo_firma, body.severidad, body.track_by, body.protocolo)
     if body.umbral < 1:
         raise HTTPException(status_code=400, detail="El umbral debe ser al menos 1")
@@ -50,13 +51,12 @@ def create_signature(body: SignatureCreate, db: Session = Depends(get_db), _=Dep
     db.add(firma)
     db.commit()
     db.refresh(firma)
-    from app.db.elastic import log_plataforma
-    log_plataforma("firma_creada", f"Se creó la firma '{firma.nombre}' (tipo {firma.tipo_firma})")
+    auditar(usuario, "firma_creada", f"Creó la firma '{firma.nombre}' (tipo {firma.tipo_firma})")
     return firma
 
 
 @router.put("/{firma_id}", response_model=SignatureOut)
-def update_signature(firma_id: int, body: SignatureUpdate, db: Session = Depends(get_db), _=Depends(require_roles("developer"))):
+def update_signature(firma_id: int, body: SignatureUpdate, db: Session = Depends(get_db), usuario=Depends(require_roles("developer"))):
     firma = db.get(IDSSignature, firma_id)
     if not firma:
         raise HTTPException(status_code=404, detail="Firma no encontrada")
@@ -74,12 +74,13 @@ def update_signature(firma_id: int, body: SignatureUpdate, db: Session = Depends
         setattr(firma, k, v)
     db.commit()
     db.refresh(firma)
+    auditar(usuario, "firma_editada", f"Editó la firma '{firma.nombre}'")
     return firma
 
 
 @router.patch("/{firma_id}", response_model=SignatureOut)
 def patch_signature(firma_id: int, body: SignatureUpdate, db: Session = Depends(get_db),
-                    _=Depends(require_roles("developer", "admin"))):
+                    usuario=Depends(require_roles("developer", "admin"))):
     """
     Activar/desactivar una firma. Permitido a developer y admin.
     A diferencia del PUT, aquí SOLO se permite cambiar `enabled` — admin no puede
@@ -93,14 +94,18 @@ def patch_signature(firma_id: int, body: SignatureUpdate, db: Session = Depends(
     firma.enabled = body.enabled
     db.commit()
     db.refresh(firma)
+    estado = "activó" if firma.enabled else "desactivó"
+    auditar(usuario, "firma_estado", f"{estado.capitalize()} la firma '{firma.nombre}'")
     return firma
 
 
 @router.delete("/{firma_id}")
-def delete_signature(firma_id: int, db: Session = Depends(get_db), _=Depends(require_roles("developer"))):
+def delete_signature(firma_id: int, db: Session = Depends(get_db), usuario=Depends(require_roles("developer"))):
     firma = db.get(IDSSignature, firma_id)
     if not firma:
         raise HTTPException(status_code=404, detail="Firma no encontrada")
+    nombre = firma.nombre
     db.delete(firma)
     db.commit()
+    auditar(usuario, "firma_eliminada", f"Eliminó la firma '{nombre}'", nivel="warning")
     return {"ok": True}

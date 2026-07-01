@@ -18,6 +18,9 @@ class Alert(Base):
     dest_ip        = Column(String(45), nullable=True)
     protocol       = Column(String(16), nullable=True)     # tcp | udp | icmp
     description    = Column(Text, nullable=True)
-    detected_by    = Column(String(16), default="firma")   # firma | ml (qué motor la detectó)
+    detected_by    = Column(String(16), default="firma")   # firma | firma+ml (qué motor la detectó)
+    ml_validado    = Column(Boolean, default=False)         # True solo si el ML CONFIRMÓ el ataque
+    ml_estado      = Column(String(16), default="sin_ml")   # sin_ml | confirmado | no_concluyente
+    ml_confianza   = Column(Integer, nullable=True)         # confianza del ML en %, 0-100 (None si no aplica)
     acknowledged   = Column(Boolean, default=False)        # si el analista ya la revisó
     created_at     = Column(DateTime, server_default=func.now())

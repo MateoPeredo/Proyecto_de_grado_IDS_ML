@@ -15,6 +15,7 @@ USO (desde la carpeta ids-backend, como root):
 Si no se indica interfaz, intenta leerla de la config del IDS (tabla config).
 """
 import argparse
+import os
 import time
 
 from app.db.mysql import SessionLocal
@@ -53,6 +54,9 @@ def guardar_alerta(alerta: dict):
         descripcion = alerta.get("description", "")
         ml = alerta.get("ml")
         detected_by = alerta.get("detected_by", "firma")
+        ml_validado = False
+        ml_estado = "sin_ml"           # sin_ml | confirmado | no_concluyente
+        ml_confianza = None
         if ml and ml.get("disponible"):
             conf = ml.get("confianza")
             conf_txt = f"{conf*100:.0f}%" if conf is not None else "s/d"
@@ -60,7 +64,17 @@ def guardar_alerta(alerta: dict):
                 f" | ML: {ml.get('clase')} (confianza {conf_txt}) "
                 f"[{ml.get('modelo')}]"
             )
-            detected_by = "firma+ml"   # confirmada por las dos etapas
+            detected_by = "firma+ml"   # pasó por las dos etapas
+            ml_confianza = int(round(conf * 100)) if conf is not None else None
+            if ml.get("es_ataque"):
+                # El ML CONFIRMA el ataque: las dos etapas coinciden.
+                ml_validado = True
+                ml_estado = "confirmado"
+            else:
+                # El ML cree benigno pero no superó el umbral de veto: la alerta
+                # se conservó por la firma. NO es una validación del ML.
+                ml_validado = False
+                ml_estado = "no_concluyente"
 
         registro = Alert(
             timestamp=datetime.now(),   # hora local (según TZ del contenedor)
@@ -71,6 +85,9 @@ def guardar_alerta(alerta: dict):
             protocol=alerta.get("protocol"),
             description=descripcion,
             detected_by=detected_by,
+            ml_validado=ml_validado,
+            ml_estado=ml_estado,
+            ml_confianza=ml_confianza,
         )
         db.add(registro)
         db.commit()
@@ -188,7 +205,7 @@ def iniciar(interfaz: str, recargar_cada: int = 60, flush_trafico: int = 2):
         # ETAPA 1 — Detección por firmas: ¿este paquete dispara alguna alerta?
         alertas = detector.procesar(info)
         for alerta in alertas:
-            # ETAPA 2 — Verificación ML: solo si hay modelo activo
+            # ETAPA 2 — Verificación ML: siempre que haya modelo activo
             ml_resultado = None
             if verificador.disponible():
                 features = constructor.features_para(
@@ -196,16 +213,41 @@ def iniciar(interfaz: str, recargar_cada: int = 60, flush_trafico: int = 2):
                 )
                 if features is not None:
                     ml_resultado = verificador.verificar(features)
+                else:
+                    # Hay modelo, pero el constructor no tiene el flujo de ese par
+                    # de IPs (flujo muy corto o ya expirado). Lo dejamos trazado
+                    # para saber por qué esta alerta no pasó por el modelo.
+                    print(f"[ML] sin features del flujo {alerta.get('source_ip')} -> "
+                          f"{alerta.get('dest_ip')}: la alerta se guarda solo con firma")
+                    try:
+                        from app.db.elastic import log_deteccion
+                        log_deteccion(
+                            motor="firma", resultado="sin_verificar",
+                            detalle=(f"{alerta['signature_name']}: no había flujo para "
+                                     f"verificar con ML ({alerta.get('source_ip')} -> "
+                                     f"{alerta.get('dest_ip')})"),
+                        )
+                    except Exception:
+                        pass
 
-            # Decisión del double-check:
-            # - Si el ML está disponible y dice BENIGN -> es falso positivo: DESCARTAR
-            # - Si el ML confirma ataque, o no hay ML/flujo -> CONSERVAR la alerta
-            if ml_resultado and ml_resultado.get("disponible") and not ml_resultado.get("es_ataque"):
+            # Decisión del double-check (con UMBRAL DE VETO):
+            # - El ML solo descarta un falso positivo si está MUY seguro de que es
+            #   benigno (confianza >= ML_UMBRAL_VETO, por defecto 0.90). Si duda,
+            #   gana la firma y la alerta SE CONSERVA. Esto evita que el ML vete
+            #   ataques de volumen (fuerza bruta / DoS), cuyos flujos individuales
+            #   parecen benignos aunque el patrón agregado sea un ataque.
+            # - Sin confianza disponible NO se descarta (no se puede vetar a ciegas).
+            # - Ajustable por entorno (ML_UMBRAL_VETO) sin reconstruir la imagen.
+            _umbral_veto = float(os.environ.get("ML_UMBRAL_VETO", "0.90"))
+            _conf_ml = ml_resultado.get("confianza") if ml_resultado else None
+            if (ml_resultado and ml_resultado.get("disponible")
+                    and not ml_resultado.get("es_ataque")
+                    and _conf_ml is not None and _conf_ml >= _umbral_veto):
                 conf = ml_resultado.get("confianza")
                 conf_txt = f"{conf*100:.0f}%" if conf is not None else "s/d"
                 print(f"[DESCARTADA] {alerta['signature_name']} | "
                       f"{alerta['source_ip']} -> {alerta['dest_ip']} "
-                      f"| ML dice BENIGN ({conf_txt}): falso positivo")
+                      f"| ML dice BENIGN ({conf_txt}) >= umbral {_umbral_veto:.0%}: falso positivo")
                 # Log de la decisión de descarte (opcional, no rompe si falla)
                 try:
                     from app.db.elastic import log_deteccion
@@ -221,11 +263,19 @@ def iniciar(interfaz: str, recargar_cada: int = 60, flush_trafico: int = 2):
 
             # Confirmada (por ML o sin ML disponible): guardar
             alerta["ml"] = ml_resultado
-            etiqueta_ml = ""
+            # Redactar la etiqueta segun lo que REALMENTE pasó, sin contradicciones:
+            #  - ML dice ataque            -> "ML confirma: <clase> (NN%)"
+            #  - ML dice BENIGN pero <umbral-> "ML no concluyente (BENIGN NN%): se conserva por firma"
+            #  - sin ML / sin flujo        -> "sin verificación ML"
+            etiqueta_ml = " | sin verificación ML"
             if ml_resultado and ml_resultado.get("disponible"):
                 conf = ml_resultado.get("confianza")
                 conf_txt = f"{conf*100:.0f}%" if conf is not None else "s/d"
-                etiqueta_ml = f" | ML confirma: {ml_resultado.get('clase')} ({conf_txt})"
+                if ml_resultado.get("es_ataque"):
+                    etiqueta_ml = f" | ML confirma: {ml_resultado.get('clase')} ({conf_txt})"
+                else:
+                    etiqueta_ml = (f" | ML no concluyente (BENIGN {conf_txt} < umbral "
+                                   f"{_umbral_veto:.0%}): se conserva por firma")
             print(f"[ALERTA] {alerta['signature_name']} | "
                   f"{alerta['source_ip']} -> {alerta['dest_ip']}{etiqueta_ml}")
             guardar_alerta(alerta)
