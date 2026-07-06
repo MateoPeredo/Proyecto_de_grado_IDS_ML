@@ -34,7 +34,7 @@ def init_db(retries: int = 10, delay: int = 3):
     así que reintentamos varias veces antes de rendirnos.
     """
 
-    from app.models import user, rule, config, alert, notification, ids_signature
+    from app.models import user, rule, config, alert, notification, ids_signature, sensor_estado
 
     for intento in range(1, retries + 1):
         try:
@@ -58,6 +58,7 @@ def _migrar_columnas_alerts():
     nuevas = {
         "ml_validado": "ALTER TABLE alerts ADD COLUMN ml_validado TINYINT(1) DEFAULT 0",
         "ml_estado": "ALTER TABLE alerts ADD COLUMN ml_estado VARCHAR(16) DEFAULT 'sin_ml'",
+        "segmento": "ALTER TABLE alerts ADD COLUMN segmento VARCHAR(32) DEFAULT 'datos'",
         "ml_confianza": "ALTER TABLE alerts ADD COLUMN ml_confianza INT NULL",
     }
     try:

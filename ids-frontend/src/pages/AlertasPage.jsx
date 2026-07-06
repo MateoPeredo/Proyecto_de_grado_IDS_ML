@@ -9,10 +9,12 @@ export function PageAlertas({ alerts, onAck, onAckAll, t }) {
   const s = useStyles(t);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [segmento, setSegmento] = useState("todos");
 
   const filtered = alerts.filter((a) => {
     if (filter === "active" && a.acknowledged) return false;
     if (filter !== "all" && filter !== "active" && a.severity !== filter) return false;
+    if (segmento !== "todos" && (a.segmento || "datos") !== segmento) return false;
     const q = search.toLowerCase();
     if (q) {
       const hay = `${a.source_ip ?? ""} ${a.dest_ip ?? ""} ${a.signature_name ?? ""}`.toLowerCase();
@@ -50,6 +52,17 @@ export function PageAlertas({ alerts, onAck, onAckAll, t }) {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
+        <select value={segmento} onChange={(e) => setSegmento(e.target.value)}
+          style={{ fontSize: 12, padding: "7px 10px", borderRadius: 6,
+                   background: t.card, color: t.text, border: `1px solid ${t.border}` }}>
+          <option value="todos">Todos los segmentos</option>
+          <option value="datos">Red de Datos</option>
+          <option value="contable">Contabilidad</option>
+          <option value="wifi">WiFi</option>
+          <option value="dmz">Producción (DMZ)</option>
+          <option value="prodv2">Producción V2</option>
+          <option value="riesgos">Riesgos</option>
+        </select>
         <div style={{ display: "flex", gap: 6 }}>
           {filterBtns.map(({ key, label }) => (
             <button

@@ -49,22 +49,27 @@ export function PageMonitoreo({ t }) {
   const [protos, setProtos]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [segmento, setSegmento] = useState("todos");   // filtro de segmento
+  const [sensores, setSensores] = useState([]);        // estado de cada sensor
 
   const cargarTrafico = async () => {
-    try { setSeries((await monitorService.getStats(60)).data.series || []); } catch { setSeries([]); }
+    try { setSeries((await monitorService.getStats(60, segmento)).data.series || []); } catch { setSeries([]); }
     finally { setLoading(false); }
   };
   const cargarProtos = async () => {
     try { setProtos((await monitorService.getProtocolosTrafico(1440)).data.protocols || []); } catch { setProtos([]); }
   };
-  const cargarTodo = () => { cargarTrafico(); cargarProtos(); };
+  const cargarSensores = async () => {
+    try { setSensores((await monitorService.getSensores()).data.sensores || []); } catch { setSensores([]); }
+  };
+  const cargarTodo = () => { cargarTrafico(); cargarProtos(); cargarSensores(); };
 
   useEffect(() => {
     cargarTodo();
     if (!autoRefresh) return;
     const iv = setInterval(cargarTodo, 3000);
     return () => clearInterval(iv);
-  }, [autoRefresh]);
+  }, [autoRefresh, segmento]);
 
   const totalNormal = series.reduce((a, p) => a + (p.normales || 0), 0);
   const totalMalicioso = series.reduce((a, p) => a + (p.maliciosos || 0), 0);
@@ -80,11 +85,51 @@ export function PageMonitoreo({ t }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        {/* Selector de segmento */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 12, color: t.text2, fontWeight: 600 }}>Segmento:</span>
+          <select value={segmento} onChange={(e) => setSegmento(e.target.value)}
+            style={{ fontSize: 12, padding: "5px 10px", borderRadius: 6,
+                     background: t.card, color: t.text, border: `1px solid ${t.border}` }}>
+            <option value="todos">Todos</option>
+            <option value="datos">Red de Datos</option>
+            <option value="contable">Contabilidad</option>
+            <option value="wifi">WiFi</option>
+            <option value="dmz">Producción (DMZ)</option>
+            <option value="prodv2">Producción V2</option>
+            <option value="riesgos">Riesgos</option>
+          </select>
+        </div>
         <button onClick={() => setAutoRefresh((v) => !v)}
           style={{ ...s.btn(autoRefresh ? "primary" : "ghost"), fontSize: 12 }}>
           {autoRefresh ? "● En vivo" : "○ Pausado"}
         </button>
+      </div>
+
+      {/* Estado de sensores por segmento */}
+      <div style={{ ...s.card, padding: "10px 14px" }}>
+        <div style={{ fontSize: 12, color: t.text2, fontWeight: 600, marginBottom: 8 }}>
+          Sensores por segmento
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {sensores.length === 0 && (
+            <span style={{ fontSize: 12, color: t.text3 }}>Sin sensores reportando aún.</span>
+          )}
+          {sensores.map((sen) => (
+            <span key={sen.segmento} title={`interfaz: ${sen.interfaz || "?"}`}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11,
+                fontWeight: 600, padding: "3px 10px", borderRadius: 20, whiteSpace: "nowrap",
+                color: sen.activo ? "#16a34a" : t.text3,
+                background: sen.activo ? "#16a34a18" : `${t.text3}14`,
+              }}>
+              <span style={{ width: 8, height: 8, borderRadius: "50%",
+                background: sen.activo ? "#16a34a" : t.text3, display: "inline-block" }} />
+              {sen.segmento} · {sen.activo ? "activo" : "inactivo"}
+            </span>
+          ))}
+        </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 10 }}>

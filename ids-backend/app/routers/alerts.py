@@ -21,12 +21,15 @@ router = APIRouter(prefix="/alerts", tags=["alerts"])
 def get_alerts(
     limit: int = Query(100, le=1000),
     severity: str | None = None,
+    segmento: str | None = None,
     db: Session = Depends(get_db),
     _=Depends(current_user),
 ):
     q = db.query(Alert)
     if severity:
         q = q.filter(Alert.severity == severity)
+    if segmento and segmento != "todos":
+        q = q.filter(Alert.segmento == segmento)
     return q.order_by(Alert.timestamp.desc()).limit(limit).all()
 
 

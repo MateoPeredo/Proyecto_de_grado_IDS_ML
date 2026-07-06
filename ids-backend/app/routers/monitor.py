@@ -13,17 +13,23 @@ DB = settings.CLICKHOUSE_DB
 
 
 @router.get("/stats")
-def get_stats(minutes: int = Query(60, le=1440), _=Depends(current_user)):
-    """Tráfico normal vs malicioso por minuto (para el gráfico en vivo)."""
+def get_stats(minutes: int = Query(60, le=1440), segmento: str | None = None,
+              _=Depends(current_user)):
+    """Tráfico normal vs malicioso por minuto (para el gráfico en vivo).
+    Si se pasa 'segmento', filtra solo ese; si no, agrega todos."""
     try:
         client = get_client()
+        filtro_seg = ""
+        if segmento and segmento != "todos":
+            seg = segmento.replace("'", "")   # saneo básico
+            filtro_seg = f"AND segmento = '{seg}'"
         rows = client.query(f"""
             SELECT toStartOfMinute(ts)        AS minuto,
                    sum(flujos_normales)       AS normales,
                    sum(flujos_maliciosos)     AS maliciosos,
                    sum(packets)               AS packets
             FROM {DB}.traffic_raw
-            WHERE ts >= now() - INTERVAL {int(minutes)} MINUTE
+            WHERE ts >= now() - INTERVAL {int(minutes)} MINUTE {filtro_seg}
             GROUP BY minuto
             ORDER BY minuto
         """).result_rows
@@ -35,6 +41,32 @@ def get_stats(minutes: int = Query(60, le=1440), _=Depends(current_user)):
         return {"series": series, "total_points": len(series)}
     except Exception:
         return {"series": [], "total_points": 0}
+
+
+@router.get("/sensores")
+def estado_sensores(_=Depends(current_user)):
+    """Estado (activo/inactivo) de cada sensor por segmento, según su último
+    latido. Activo si latió en los últimos 30 s. Solo lectura."""
+    from datetime import datetime, timedelta
+    from app.db.mysql import SessionLocal
+    from app.models.sensor_estado import SensorEstado
+    db = SessionLocal()
+    try:
+        limite = datetime.now() - timedelta(seconds=30)
+        filas = db.query(SensorEstado).all()
+        return {"sensores": [
+            {
+                "segmento": f.segmento,
+                "interfaz": f.interfaz,
+                "activo": bool(f.ultimo_latido and f.ultimo_latido >= limite),
+                "ultimo_latido": f.ultimo_latido.isoformat() if f.ultimo_latido else None,
+            }
+            for f in filas
+        ]}
+    except Exception:
+        return {"sensores": []}
+    finally:
+        db.close()
 
 
 @router.get("/alerts-timeline")

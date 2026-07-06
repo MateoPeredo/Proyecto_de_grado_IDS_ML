@@ -84,7 +84,7 @@ export const mlService = {
 
 // ── Monitor ──────────────────────────────────────────────────────────────────
 export const monitorService = {
-  getStats:       (minutes) => api.get("/monitor/stats", { params: { minutes } }),
+  getStats:       (minutes, segmento) => api.get("/monitor/stats", { params: { minutes, segmento } }),
   getAlertsTimeline: (hours) => api.get("/monitor/alerts-timeline", { params: { hours } }),
   getProtocols:   (hours)   => api.get("/monitor/protocols", { params: { hours } }),
   getProtocolosTrafico: (minutes) => api.get("/monitor/protocolos-trafico", { params: { minutes } }),
@@ -92,6 +92,7 @@ export const monitorService = {
   getTiposAtaque: ()        => api.get("/monitor/tipos-ataque"),
   getTopAtacantes:()        => api.get("/monitor/top-atacantes"),
   getVerificacionML: ()     => api.get("/monitor/verificacion-ml"),
+  getSensores:    ()        => api.get("/monitor/sensores"),
 };
 
 // ── Config del IDS ───────────────────────────────────────────────────────────

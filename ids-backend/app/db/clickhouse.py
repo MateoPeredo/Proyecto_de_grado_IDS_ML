@@ -46,11 +46,20 @@ def init_clickhouse():
                 bytes              UInt64,
                 flujos_normales    UInt32,
                 flujos_maliciosos  UInt32,
-                protocol           LowCardinality(String)
+                protocol           LowCardinality(String),
+                segmento           LowCardinality(String) DEFAULT 'datos'
             ) ENGINE = MergeTree()
             ORDER BY (ts, protocol)
             TTL ts + INTERVAL 7 DAY
         """)
+        # Migración idempotente: si la tabla ya existía sin 'segmento', se agrega.
+        try:
+            client.command(
+                f"ALTER TABLE {db}.traffic_raw "
+                f"ADD COLUMN IF NOT EXISTS segmento LowCardinality(String) DEFAULT 'datos'"
+            )
+        except Exception:
+            pass
 
         # ── Tabla 2: conteo de alertas agregado (90 días) ────────────────────────
         client.command(f"""

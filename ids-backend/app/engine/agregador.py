@@ -17,8 +17,9 @@ from collections import defaultdict
 
 
 class AgregadorTrafico:
-    def __init__(self, flush_segundos: int = 5):
+    def __init__(self, flush_segundos: int = 5, segmento: str = "datos"):
         self.flush_segundos = flush_segundos
+        self.segmento = segmento              # a qué segmento pertenece este sensor
         self._lock = threading.Lock()
         self._reset_contadores()
         self._activo = False
@@ -78,13 +79,14 @@ class AgregadorTrafico:
             for protocolo, d in datos.items():
                 filas.append([
                     ahora, d["packets"], d["bytes"],
-                    d["normales"], d["maliciosos"], protocolo,
+                    d["normales"], d["maliciosos"], protocolo, self.segmento,
                 ])
             if filas:
                 client.insert(
                     f"{settings.CLICKHOUSE_DB}.traffic_raw",
                     filas,
-                    column_names=["ts", "packets", "bytes", "flujos_normales", "flujos_maliciosos", "protocol"],
+                    column_names=["ts", "packets", "bytes", "flujos_normales",
+                                  "flujos_maliciosos", "protocol", "segmento"],
                 )
         except Exception as e:
             print(f"[trafico] no se pudo escribir en ClickHouse: {e}")

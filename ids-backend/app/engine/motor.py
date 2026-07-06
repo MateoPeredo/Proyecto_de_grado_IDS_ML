@@ -5,8 +5,7 @@ Captura paquetes con Scapy en una interfaz de red, extrae la información de
 comportamiento (sin payload), la pasa al Detector, y guarda las alertas
 resultantes en MySQL.
 
-Requiere privilegios de root y la interfaz en modo promiscuo (un IDS observa
-TODO el tráfico del segmento, no solo el dirigido a él).
+Requiere privilegios de root y la interfaz en modo promiscuo (un IDS observa todo el tráfico del segmento, no solo el dirigido a él).
 
 USO (desde la carpeta ids-backend, como root):
     python -m app.engine.motor --interfaz eth0
@@ -19,6 +18,12 @@ import os
 import time
 
 from app.db.mysql import SessionLocal
+
+
+def _segmento_actual() -> str:
+    """Segmento que vigila este sensor (etiqueta para alertas y métricas).
+    Se define con la variable de entorno IDS_SEGMENTO (default 'datos')."""
+    return os.environ.get("IDS_SEGMENTO", "datos")
 from app.models.ids_signature import IDSSignature
 from app.models.alert import Alert
 from app.engine.detector import Detector, Firma, PaqueteInfo
@@ -85,6 +90,7 @@ def guardar_alerta(alerta: dict):
             protocol=alerta.get("protocol"),
             description=descripcion,
             detected_by=detected_by,
+            segmento=_segmento_actual(),
             ml_validado=ml_validado,
             ml_estado=ml_estado,
             ml_confianza=ml_confianza,
@@ -160,12 +166,29 @@ def iniciar(interfaz: str, recargar_cada: int = 60, flush_trafico: int = 2):
     if not firmas:
         print("[motor] ADVERTENCIA: no hay firmas activas en la BD.")
     detector = Detector(firmas)
-    print(f"[motor] {len(firmas)} firmas cargadas. Escuchando en {interfaz}...")
+    segmento = _segmento_actual()
+    print(f"[motor] {len(firmas)} firmas cargadas. Escuchando en {interfaz} "
+          f"(segmento: {segmento})...")
 
     # Agregador de tráfico para el gráfico verde/rojo (corre en su propio hilo)
-    agregador = AgregadorTrafico(flush_segundos=flush_trafico)
+    agregador = AgregadorTrafico(flush_segundos=flush_trafico, segmento=segmento)
     agregador.iniciar()
     print(f"[motor] registrando tráfico en ClickHouse cada {flush_trafico}s")
+
+    # Latido en hilo INDEPENDIENTE: el sensor marca que está vivo cada 10s
+    # pase lo que pase, aunque su segmento no tenga tráfico. Así el panel del
+    # front muestra "activo" a todo sensor encendido (antes el latido dependía
+    # de recibir paquetes, y los segmentos tranquilos aparecían "inactivo").
+    import threading
+    def _bucle_latido():
+        from app.engine.latido import latir
+        while True:
+            try:
+                latir(segmento, interfaz)
+            except Exception:
+                pass
+            time.sleep(10)
+    threading.Thread(target=_bucle_latido, daemon=True).start()
 
     # ── Segunda etapa: constructor de flujo + verificador ML ─────────────────
     # El constructor acumula estadísticas de cada flujo para poder calcular las
@@ -178,7 +201,8 @@ def iniciar(interfaz: str, recargar_cada: int = 60, flush_trafico: int = 2):
     else:
         print("[motor] sin modelo ML activo: las alertas de firma se guardan sin verificación.")
 
-    estado = {"ultima_recarga": time.time(), "ultima_recarga_modelo": time.time()}
+    estado = {"ultima_recarga": time.time(), "ultima_recarga_modelo": time.time(),
+              "ultimo_latido": time.time()}
 
     def manejar(pkt):
         # recargar firmas periódicamente (por si se editaron en la BD)

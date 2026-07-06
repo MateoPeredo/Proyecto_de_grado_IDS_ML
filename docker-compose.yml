@@ -1,3 +1,43 @@
+# ── Plantillas para los sensores (anchors YAML) ─────────────────
+# Evitan repetir la config común de los 6 sensores.
+x-sensor-base: &sensor-base
+  build:
+    context: ./ids-backend
+    dockerfile: Dockerfile
+  image: ids-backend            
+  network_mode: host            # acceso directo a las interfaces del host
+  cap_add:
+    - NET_ADMIN
+    - NET_RAW
+  env_file:
+    - path: ./ids-backend/.env
+      required: false
+  volumes:
+    - models-data:/app/app/ml/modelos
+  # Los sensores NO corren la API (corren el motor de captura), así que el
+  # healthcheck del Dockerfile (curl a /health) no aplica y los marcaría
+  # "unhealthy" sin motivo. Se desactiva para que el estado sea correcto.
+  healthcheck:
+    disable: true
+  profiles: ["sensor"]
+  restart: "no"
+
+x-sensor-env: &sensor-env
+  TZ: America/La_Paz
+  MYSQL_HOST: 127.0.0.1
+  MYSQL_PORT: "3306"
+  MYSQL_USER: ids
+  MYSQL_PASSWORD: ids_pass
+  MYSQL_DB: ids
+  CLICKHOUSE_HOST: 127.0.0.1
+  CLICKHOUSE_PORT: "8123"
+  CLICKHOUSE_USER: ids
+  CLICKHOUSE_PASSWORD: ids_pass
+  CLICKHOUSE_DB: ids_metrics
+  ELASTIC_HOST: http://127.0.0.1:9200
+  MODELS_DIR: /app/app/ml/modelos
+  NOTIF_VENTANA_MIN: ${NOTIF_VENTANA_MIN:-15}
+
 services:
   # ── Frontend (React/Vite + Nginx) ───────────────────────────────────────────
   frontend:
@@ -25,7 +65,7 @@ services:
       dockerfile: Dockerfile
     container_name: ids-backend
     expose:
-      - "8000"           
+      - "8000"
     env_file:
       - path: ./ids-backend/.env
         required: false
@@ -121,59 +161,71 @@ services:
     networks:
       - ids-net
 
-  # ── Sensor del IDS (motor de captura) ────────────────────────────────────────
-  # Componente independiente que captura tráfico en modo promiscuo.
-  # Usa la MISMA imagen del backend (tiene el motor, detector y modelos).
-  # network_mode: host -> ve las interfaces de red reales (como un IDS físico
-  # conectado al segmento que vigila). Por eso llega a MySQL vía 127.0.0.1.
+  # ════════════════════════════════════════════════════════════════════════════
+  #  SENSORES POR SEGMENTO (multi-sensor)
   #
-  # No arranca solo (profile "sensor"): se levanta a propósito cuando se quiere
-  # capturar, para no consumir recursos ni capturar sin querer.
-  sensor:
-    build:
-      context: ./ids-backend
-      dockerfile: Dockerfile
-    image: ids-backend          # reutiliza la imagen ya construida del backend
-    container_name: ids-sensor
-    network_mode: host          # acceso directo a las interfaces del host
-    cap_add:
-      - NET_ADMIN               # permisos para captura en modo promiscuo
-      - NET_RAW
-    # Credenciales SMTP (y demás) desde el .env. SIN esto el sensor no tiene
-    # SMTP_USER/SMTP_PASSWORD y las notificaciones por correo fallan en silencio.
-    # Las claves repetidas abajo en 'environment' (MYSQL_HOST=127.0.0.1, etc.)
-    # tienen prioridad sobre el .env, así que el modo host se respeta igual.
-    env_file:
-      - path: ./ids-backend/.env
-        required: false
+  #  Cada uno vigila el bridge de un segmento del lab y etiqueta sus alertas y
+  #  tráfico con su segmento (IDS_SEGMENTO). Comparten el perfil "sensor", así
+  #  que se prenden/apagan a propósito, no arrancan solos.
+  #
+  #    Prender todos:  docker compose --profile sensor up -d
+  #    Prender uno:    docker compose --profile sensor up -d sensor-produccion
+  #    Apagar uno:     docker compose stop sensor-produccion
+  #    Estado:         docker compose ps | grep sensor
+  # ════════════════════════════════════════════════════════════════════════════
+  sensor-datos:
+    <<: *sensor-base
+    container_name: ids-sensor-datos
     environment:
-      # En modo host, MySQL es accesible por el puerto expuesto en 127.0.0.1
-      TZ: America/La_Paz
-      MYSQL_HOST: 127.0.0.1
-      MYSQL_PORT: "3306"
-      MYSQL_USER: ids
-      MYSQL_PASSWORD: ids_pass
-      MYSQL_DB: ids
-      # ClickHouse también accesible por 127.0.0.1
-      CLICKHOUSE_HOST: 127.0.0.1
-      CLICKHOUSE_PORT: "8123"
-      CLICKHOUSE_USER: ids
-      CLICKHOUSE_PASSWORD: ids_pass
-      CLICKHOUSE_DB: ids_metrics
-      # Elasticsearch accesible por 127.0.0.1
-      ELASTIC_HOST: http://127.0.0.1:9200
-      # interfaz puede cambiar segun la red 
-      IDS_INTERFAZ: ${IDS_INTERFAZ:-br-28e9c1d1b17e}
-      # Carpeta de modelos 
-      MODELS_DIR: /app/app/ml/modelos
-      # Ventana anti-avalancha de notificaciones, en minutos (default 15)
-      NOTIF_VENTANA_MIN: ${NOTIF_VENTANA_MIN:-15}
-    volumes:
-      - models-data:/app/app/ml/modelos
-    # motor de captura 
-    command: ["python", "-m", "app.engine.motor", "--interfaz", "${IDS_INTERFAZ:-br-28e9c1d1b17e}"]
-    profiles: ["sensor"]        
-    restart: "no"
+      <<: *sensor-env
+      IDS_INTERFAZ: br-datos
+      IDS_SEGMENTO: datos
+    command: ["python", "-m", "app.engine.motor", "--interfaz", "br-datos"]
+
+  sensor-contable:
+    <<: *sensor-base
+    container_name: ids-sensor-contable
+    environment:
+      <<: *sensor-env
+      IDS_INTERFAZ: br-contable
+      IDS_SEGMENTO: contable
+    command: ["python", "-m", "app.engine.motor", "--interfaz", "br-contable"]
+
+  sensor-wifi:
+    <<: *sensor-base
+    container_name: ids-sensor-wifi
+    environment:
+      <<: *sensor-env
+      IDS_INTERFAZ: br-wifi
+      IDS_SEGMENTO: wifi
+    command: ["python", "-m", "app.engine.motor", "--interfaz", "br-wifi"]
+
+  sensor-produccion:
+    <<: *sensor-base
+    container_name: ids-sensor-produccion
+    environment:
+      <<: *sensor-env
+      IDS_INTERFAZ: br-dmz
+      IDS_SEGMENTO: dmz
+    command: ["python", "-m", "app.engine.motor", "--interfaz", "br-dmz"]
+
+  sensor-prodv2:
+    <<: *sensor-base
+    container_name: ids-sensor-prodv2
+    environment:
+      <<: *sensor-env
+      IDS_INTERFAZ: br-prodv2
+      IDS_SEGMENTO: prodv2
+    command: ["python", "-m", "app.engine.motor", "--interfaz", "br-prodv2"]
+
+  sensor-riesgos:
+    <<: *sensor-base
+    container_name: ids-sensor-riesgos
+    environment:
+      <<: *sensor-env
+      IDS_INTERFAZ: br-riesgos
+      IDS_SEGMENTO: riesgos
+    command: ["python", "-m", "app.engine.motor", "--interfaz", "br-riesgos"]
 
 networks:
   ids-net:

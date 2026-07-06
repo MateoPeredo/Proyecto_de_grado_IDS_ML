@@ -105,6 +105,7 @@ class AlertOut(BaseModel):
     protocol: Optional[str] = None
     description: Optional[str] = None
     detected_by: str
+    segmento: str = "datos"
     ml_validado: bool = False
     ml_estado: str = "sin_ml"
     ml_confianza: Optional[int] = None
