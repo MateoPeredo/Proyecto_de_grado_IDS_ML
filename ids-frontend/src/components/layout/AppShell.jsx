@@ -32,7 +32,7 @@ export function AppShell() {
     notif:     <PageNotificaciones t={t} />,
     reglas:    <PageReglas   t={t} />,
     logs:      <PageLogs     t={t} />,
-    ml:        <PageML       t={t} />,
+    ml:        <PageML       t={t} role={role} />,
     usuarios:  <PageUsuarios t={t} />,
     config:    <PageConfig   t={t} mode={mode} onToggleTheme={toggle} />,
   };
@@ -60,14 +60,7 @@ export function AppShell() {
         />
 
         <div style={{ flex: 1, overflowY: "auto", padding: "18px 20px", background: t.bg }}>
-          {page === "ml" && role !== "developer" ? (
-            <div style={{ padding: 40, textAlign: "center", color: t.text3, fontSize: 14 }}>
-              No tienes permiso para acceder a esta sección.<br />
-              Solo el rol Desarrollador puede ver el modelo de ML.
-            </div>
-          ) : (
-            pages[page]
-          )}
+          {pages[page]}
         </div>
 
         {/* Footer */}

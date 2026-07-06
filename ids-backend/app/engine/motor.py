@@ -62,6 +62,7 @@ def guardar_alerta(alerta: dict):
         ml_validado = False
         ml_estado = "sin_ml"           # sin_ml | confirmado | no_concluyente
         ml_confianza = None
+        ml_clase = None
         if ml and ml.get("disponible"):
             conf = ml.get("confianza")
             conf_txt = f"{conf*100:.0f}%" if conf is not None else "s/d"
@@ -71,6 +72,7 @@ def guardar_alerta(alerta: dict):
             )
             detected_by = "firma+ml"   # pasó por las dos etapas
             ml_confianza = int(round(conf * 100)) if conf is not None else None
+            ml_clase = ml.get("clase")
             if ml.get("es_ataque"):
                 # El ML CONFIRMA el ataque: las dos etapas coinciden.
                 ml_validado = True
@@ -94,6 +96,7 @@ def guardar_alerta(alerta: dict):
             ml_validado=ml_validado,
             ml_estado=ml_estado,
             ml_confianza=ml_confianza,
+            ml_clase=ml_clase,
         )
         db.add(registro)
         db.commit()

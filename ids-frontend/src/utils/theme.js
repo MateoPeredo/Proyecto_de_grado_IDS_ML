@@ -52,7 +52,7 @@ export const NAV_ITEMS = [
   { id: "notif",     label: "Notificaciones",   icon: "bell"     },
   { id: "reglas",    label: "Reglas / Firmas",  icon: "file"     },
   { id: "logs",      label: "Logs",             icon: "file"     },
-  { id: "ml",        label: "ML / Modelo",      icon: "cpu",      roles: ["developer"] },
+  { id: "ml",        label: "ML / Modelo",      icon: "cpu"      },
   { id: "usuarios",  label: "Usuarios",         icon: "users"    },
   { id: "config",    label: "Configuración",    icon: "settings" },
 ];

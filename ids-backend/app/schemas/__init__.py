@@ -109,6 +109,7 @@ class AlertOut(BaseModel):
     ml_validado: bool = False
     ml_estado: str = "sin_ml"
     ml_confianza: Optional[int] = None
+    ml_clase: Optional[str] = None
     acknowledged: bool
 
     model_config = {"from_attributes": True}

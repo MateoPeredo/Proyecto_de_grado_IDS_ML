@@ -60,6 +60,7 @@ def _migrar_columnas_alerts():
         "ml_estado": "ALTER TABLE alerts ADD COLUMN ml_estado VARCHAR(16) DEFAULT 'sin_ml'",
         "segmento": "ALTER TABLE alerts ADD COLUMN segmento VARCHAR(32) DEFAULT 'datos'",
         "ml_confianza": "ALTER TABLE alerts ADD COLUMN ml_confianza INT NULL",
+        "ml_clase": "ALTER TABLE alerts ADD COLUMN ml_clase VARCHAR(32) NULL",
     }
     try:
         with engine.connect() as conn:

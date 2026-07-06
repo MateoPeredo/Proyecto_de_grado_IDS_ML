@@ -64,11 +64,21 @@ class VerificadorML:
         self._cargar_si_hace_falta()
         if self._artefactos is None:
             return {"cargado": False}
+        # Clases que el modelo puede predecir (para la ficha técnica)
+        clases = []
+        le = self._artefactos.get("label_encoder")
+        if le is not None:
+            try:
+                clases = list(le.classes_)
+            except Exception:
+                clases = []
         return {
             "cargado": True,
             "nombre_modelo": self._artefactos.get("nombre_modelo", "desconocido"),
             "columnas": self._artefactos.get("columnas", []),
             "n_features": len(self._artefactos.get("columnas", [])),
+            "clases": clases,
+            "n_clases": len(clases),
         }
 
     def verificar(self, features: dict) -> dict:

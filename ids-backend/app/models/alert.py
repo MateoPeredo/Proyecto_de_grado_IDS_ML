@@ -23,5 +23,6 @@ class Alert(Base):
     ml_validado    = Column(Boolean, default=False)         # True solo si el ML CONFIRMÓ el ataque
     ml_estado      = Column(String(16), default="sin_ml")   # sin_ml | confirmado | no_concluyente
     ml_confianza   = Column(Integer, nullable=True)         # confianza del ML en %, 0-100 (None si no aplica)
+    ml_clase       = Column(String(32), nullable=True)      # clase que predijo el ML (PortScan, DoS, BENIGN...)
     acknowledged   = Column(Boolean, default=False)        # si el analista ya la revisó
     created_at     = Column(DateTime, server_default=func.now())

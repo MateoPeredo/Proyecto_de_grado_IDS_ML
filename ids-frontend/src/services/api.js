@@ -80,6 +80,7 @@ export const mlService = {
   },
   activarModelo: (archivo) => api.post("/ml/modelos/activar", { archivo }),
   eliminarModelo: (archivo) => api.delete(`/ml/modelos/${encodeURIComponent(archivo)}`),
+  getModelStats: () => api.get("/ml/stats"),
 };
 
 // ── Monitor ──────────────────────────────────────────────────────────────────

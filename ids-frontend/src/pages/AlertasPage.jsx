@@ -111,29 +111,34 @@ export function PageAlertas({ alerts, onAck, onAckAll, t }) {
                   <td style={{ padding: "8px 10px 8px 0", borderBottom: `0.5px solid ${t.border}` }}>
                     {(() => {
                       const estado = a.ml_estado || (a.ml_validado ? "confirmado" : "sin_ml");
-                      const conf = a.ml_confianza != null ? ` ${a.ml_confianza}%` : "";
+                      // CONFIRMADO: el ML dice que es un ataque. Mostramos la clase y su confianza.
                       if (estado === "confirmado") {
+                        const clase = a.ml_clase ? `: ${a.ml_clase}` : "";
+                        const conf = a.ml_confianza != null ? ` (${a.ml_confianza}%)` : "";
                         return (
                           <span style={{
                             display: "inline-flex", alignItems: "center", gap: 4,
                             fontSize: 11, fontWeight: 600, color: "#16a34a",
                             background: "#16a34a18", padding: "2px 8px", borderRadius: 6, whiteSpace: "nowrap",
                           }} title="El modelo ML confirma que es un ataque (las dos etapas coinciden)">
-                            ✓ ML confirma{conf}
+                            ✓ Ataque{clase}{conf}
                           </span>
                         );
                       }
+                      // NO CONCLUYENTE: el ML no respaldó, pero la firma la conservó.
+                      // NO mostramos el % (era la confianza de BENIGN y confunde).
                       if (estado === "no_concluyente") {
                         return (
                           <span style={{
                             display: "inline-flex", alignItems: "center", gap: 4,
                             fontSize: 11, fontWeight: 600, color: "#d97706",
                             background: "#d9770618", padding: "2px 8px", borderRadius: 6, whiteSpace: "nowrap",
-                          }} title="El ML no superó el umbral para vetar; la alerta se conserva por la firma">
-                            ⚠ No concluyente{conf}
+                          }} title="El ML no confirmó el ataque; la alerta se conserva porque la firma la detectó por patrón de volumen (ej. fuerza bruta)">
+                            ⚠ Detectado por firma
                           </span>
                         );
                       }
+                      // SIN ML: no hubo verificación (no había flujo o no hay modelo).
                       return <span style={{ fontSize: 11, color: t.text3 }}>— sin ML</span>;
                     })()}
                   </td>
