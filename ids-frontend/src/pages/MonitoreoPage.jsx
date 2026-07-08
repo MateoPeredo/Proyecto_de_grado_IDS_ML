@@ -1,14 +1,13 @@
 import { useState, useEffect } from "react";
 import {
-  AreaChart, Area, BarChart, Bar, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  AreaChart, Area,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
 import { useStyles } from "../hooks/useStyles";
 import { MetricCard, SectionHeader } from "../components/ui/SharedUI";
 import { NavIcon } from "../components/ui/NavIcon";
 import { monitorService } from "../services/api";
 
-const COLORES_PROTO = ["#3b82f6", "#16a34a", "#d97706", "#7c3aed", "#dc2626", "#0891b2"];
 
 function BotonRefresh({ onClick, t, s }) {
   return (
@@ -35,8 +34,50 @@ function GraficoTrafico({ datos, dataKey, nombre, color, gradId, t, hayDatos }) 
                  domain={[0, hayDatos ? "auto" : 1000]}
                  label={{ value: "Flujos", angle: -90, position: "insideLeft", fill: t.text3, fontSize: 11 }} />
           <Tooltip contentStyle={{ background: t.bg2, border: `1px solid ${t.border}`, borderRadius: 8, fontSize: 12 }} />
-          <Area type="monotone" dataKey={dataKey} name={nombre} stroke={color}
-                fill={`url(#${gradId})`} strokeWidth={2} />
+          <Area type="basis" dataKey={dataKey} name={nombre} stroke={color}
+                fill={`url(#${gradId})`} strokeWidth={2.5}
+                isAnimationActive={true} animationDuration={800} animationEasing="ease-in-out"
+                dot={false} activeDot={{ r: 4 }} connectNulls />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// Gráfico de tráfico anómalo: dos áreas superpuestas.
+//  - rojo  = ataques reales (confirmados / conservados por firma)
+//  - azul  = falsos positivos que el ML descartó
+function GraficoAnomalo({ datos, t, hayDatos }) {
+  return (
+    <div style={{ width: "100%", height: 260 }}>
+      <ResponsiveContainer>
+        <AreaChart data={datos} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+          <defs>
+            <linearGradient id="gAtaque" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%"  stopColor="#dc2626" stopOpacity={0.25} />
+              <stop offset="95%" stopColor="#dc2626" stopOpacity={0.02} />
+            </linearGradient>
+            <linearGradient id="gDescartado" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%"  stopColor="#2563eb" stopOpacity={0.18} />
+              <stop offset="95%" stopColor="#2563eb" stopOpacity={0.02} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke={t.border} />
+          <XAxis dataKey="ts" tick={{ fontSize: 11, fill: t.text3 }} />
+          <YAxis tick={{ fontSize: 11, fill: t.text3 }} allowDecimals={false}
+                 domain={[0, hayDatos ? "auto" : 4]}
+                 label={{ value: "Flujos", angle: -90, position: "insideLeft", fill: t.text3, fontSize: 11 }} />
+          <Tooltip contentStyle={{ background: t.bg2, border: `1px solid ${t.border}`, borderRadius: 8, fontSize: 12 }} />
+          <Legend wrapperStyle={{ fontSize: 11 }} />
+          {/* Azul (descartados) primero, rojo (ataques) encima para que se distingan */}
+          <Area type="basis" dataKey="descartados" name="Descartados (falsos positivos)" stroke="#2563eb"
+                fill="url(#gDescartado)" strokeWidth={2}
+                isAnimationActive={true} animationDuration={800} animationEasing="ease-in-out"
+                dot={false} activeDot={{ r: 4 }} connectNulls />
+          <Area type="basis" dataKey="maliciosos" name="Ataques" stroke="#dc2626"
+                fill="url(#gAtaque)" strokeWidth={2.5}
+                isAnimationActive={true} animationDuration={800} animationEasing="ease-in-out"
+                dot={false} activeDot={{ r: 4 }} connectNulls />
         </AreaChart>
       </ResponsiveContainer>
     </div>
@@ -46,27 +87,32 @@ function GraficoTrafico({ datos, dataKey, nombre, color, gradId, t, hayDatos }) 
 export function PageMonitoreo({ t }) {
   const s = useStyles(t);
   const [series, setSeries]   = useState([]);
-  const [protos, setProtos]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [segmento, setSegmento] = useState("todos");   // filtro de segmento
   const [sensores, setSensores] = useState([]);        // estado de cada sensor
 
   const cargarTrafico = async () => {
-    try { setSeries((await monitorService.getStats(60, segmento)).data.series || []); } catch { setSeries([]); }
-    finally { setLoading(false); }
-  };
-  const cargarProtos = async () => {
-    try { setProtos((await monitorService.getProtocolosTrafico(1440)).data.protocols || []); } catch { setProtos([]); }
+    // Si el fetch falla, NO vaciamos el gráfico: conservamos los datos previos
+    // para que no parpadee. Solo actualizamos cuando llegan datos válidos.
+    try {
+      const data = (await monitorService.getStats(5, segmento)).data.series;
+      if (Array.isArray(data)) setSeries(data);
+    } catch { /* mantener datos previos */ }
+    finally { setLoading(false); }   // tras la 1ª carga, loading queda false para siempre
   };
   const cargarSensores = async () => {
-    try { setSensores((await monitorService.getSensores()).data.sensores || []); } catch { setSensores([]); }
+    try {
+      const data = (await monitorService.getSensores()).data.sensores;
+      if (Array.isArray(data)) setSensores(data);
+    } catch { /* mantener datos previos */ }
   };
-  const cargarTodo = () => { cargarTrafico(); cargarProtos(); cargarSensores(); };
+  const cargarTodo = () => { cargarTrafico(); cargarSensores(); };
 
   useEffect(() => {
     cargarTodo();
     if (!autoRefresh) return;
+    // 3s con granularidad de 10s en el backend: la curva avanza seguido y fluido.
     const iv = setInterval(cargarTodo, 3000);
     return () => clearInterval(iv);
   }, [autoRefresh, segmento]);
@@ -78,10 +124,9 @@ export function PageMonitoreo({ t }) {
   const hayDatos = series.length > 0;
   const datosGrafico = hayDatos
     ? series
-    : [{ ts: "", normales: 0, maliciosos: 0, packets: 0 },
-       { ts: "", normales: 0, maliciosos: 0, packets: 0 }];
+    : [{ ts: "", normales: 0, maliciosos: 0, descartados: 0, packets: 0 },
+       { ts: "", normales: 0, maliciosos: 0, descartados: 0, packets: 0 }];
 
-  const protosGrafico = protos.length > 0 ? protos : [{ protocol: "—", packets: 0, bytes: 0 }];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -136,13 +181,12 @@ export function PageMonitoreo({ t }) {
         <MetricCard label="Flujos normales"   value={totalNormal}    color={t.ok}     t={t} />
         <MetricCard label="Flujos maliciosos" value={totalMalicioso} color={t.danger} t={t} />
         <MetricCard label="Paquetes (1h)"     value={totalPaquetes}  color={t.accent} t={t} />
-        <MetricCard label="Protocolos"        value={protos.length}  color={t.warn}   t={t} />
       </div>
 
       {/* Tráfico NORMAL y ANÓMALO  */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(340px,1fr))", gap: 14 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div style={s.card}>
-          <SectionHeader title="Tráfico normal en tiempo real" badge="1 min" badgeVariant="live" t={t}>
+          <SectionHeader title="Tráfico normal en tiempo real" badge="5 min" badgeVariant="live" t={t}>
             <BotonRefresh onClick={cargarTrafico} t={t} s={s} />
           </SectionHeader>
           {loading ? (
@@ -154,36 +198,15 @@ export function PageMonitoreo({ t }) {
         </div>
 
         <div style={s.card}>
-          <SectionHeader title="Tráfico anómalo en tiempo real" badge="1 min" badgeVariant="danger" t={t}>
+          <SectionHeader title="Tráfico anómalo en tiempo real" badge="5 min" badgeVariant="danger" t={t}>
             <BotonRefresh onClick={cargarTrafico} t={t} s={s} />
           </SectionHeader>
           {loading ? (
             <div style={{ padding: 40, textAlign: "center", color: t.text3, fontSize: 13 }}>Cargando...</div>
           ) : (
-            <GraficoTrafico datos={datosGrafico} dataKey="maliciosos" nombre="Tráfico anómalo"
-              color="#dc2626" gradId="gMalicioso" t={t} hayDatos={hayDatos} />
+            <GraficoAnomalo datos={datosGrafico} t={t} hayDatos={hayDatos} />
           )}
         </div>
-      </div>
-
-      <div style={s.card}>
-        <SectionHeader title="Distribución por protocolo (24h)" t={t}>
-          <BotonRefresh onClick={cargarProtos} t={t} s={s} />
-        </SectionHeader>
-        <div style={{ width: "100%", height: 260 }}>
-          <ResponsiveContainer>
-            <BarChart data={protosGrafico} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={t.border} />
-              <XAxis dataKey="protocol" tick={{ fontSize: 12, fill: t.text3 }} />
-              <YAxis tick={{ fontSize: 11, fill: t.text3 }} allowDecimals={false} label={{ value: "Paquetes", angle: -90, position: "insideLeft", fill: t.text3, fontSize: 11 }} />
-              <Tooltip contentStyle={{ background: t.bg2, border: `1px solid ${t.border}`, borderRadius: 8, fontSize: 12 }} />
-              <Bar dataKey="packets" name="Paquetes" radius={[6, 6, 0, 0]}>
-                {protosGrafico.map((_, i) => <Cell key={i} fill={COLORES_PROTO[i % COLORES_PROTO.length]} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-        {protos.length === 0 && <p style={{ textAlign: "center", fontSize: 11, color: t.text3, margin: 0 }}>Sin datos de protocolo aún. Capturá tráfico con el sensor.</p>}
       </div>
     </div>
   );

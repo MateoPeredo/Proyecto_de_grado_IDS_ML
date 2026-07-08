@@ -26,11 +26,12 @@ class AgregadorTrafico:
         self._hilo: threading.Thread | None = None
 
     def _reset_contadores(self):
-        # Conteos por protocolo: {protocolo: {"packets":, "bytes":, "normales":, "maliciosos":}}
-        self._datos = defaultdict(lambda: {"packets": 0, "bytes": 0, "normales": 0, "maliciosos": 0})
+        # Conteos por protocolo: {protocolo: {"packets":, "bytes":, "normales":, "maliciosos":, "descartados":}}
+        self._datos = defaultdict(lambda: {"packets": 0, "bytes": 0, "normales": 0, "maliciosos": 0, "descartados": 0})
 
-    def registrar(self, protocolo: str, size: int, malicioso: bool):
-        """Suma un paquete al acumulador (lo llama el motor por cada paquete)."""
+    def registrar(self, protocolo: str, size: int, malicioso: bool, descartado: bool = False):
+        """Suma un paquete al acumulador (lo llama el motor por cada paquete).
+        descartado=True: la firma disparó pero el ML lo descartó como falso positivo."""
         with self._lock:
             d = self._datos[protocolo]
             d["packets"] += 1
@@ -39,6 +40,8 @@ class AgregadorTrafico:
                 d["maliciosos"] += 1
             else:
                 d["normales"] += 1
+            if descartado:
+                d["descartados"] += 1
 
     def _tomar_y_resetear(self) -> dict:
         """Devuelve los conteos acumulados y reinicia para la próxima ventana."""
@@ -79,14 +82,16 @@ class AgregadorTrafico:
             for protocolo, d in datos.items():
                 filas.append([
                     ahora, d["packets"], d["bytes"],
-                    d["normales"], d["maliciosos"], protocolo, self.segmento,
+                    d["normales"], d["maliciosos"], d["descartados"],
+                    protocolo, self.segmento,
                 ])
             if filas:
                 client.insert(
                     f"{settings.CLICKHOUSE_DB}.traffic_raw",
                     filas,
                     column_names=["ts", "packets", "bytes", "flujos_normales",
-                                  "flujos_maliciosos", "protocol", "segmento"],
+                                  "flujos_maliciosos", "flujos_descartados",
+                                  "protocol", "segmento"],
                 )
         except Exception as e:
             print(f"[trafico] no se pudo escribir en ClickHouse: {e}")

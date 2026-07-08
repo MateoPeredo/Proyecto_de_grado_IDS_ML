@@ -38,6 +38,19 @@ LECTURA = require_roles("developer", "admin", "analyst")
 ESCRITURA = require_roles("developer")
 
 
+
+_CACHE_FICHA = {"archivo": None, "info": None}
+
+
+def _ficha_modelo(ruta: str, archivo: str) -> dict:
+    if _CACHE_FICHA["archivo"] == archivo and _CACHE_FICHA["info"] is not None:
+        return _CACHE_FICHA["info"]
+    info = VerificadorML(ruta).info()   # carga el .pkl (solo cuando cambió)
+    _CACHE_FICHA["archivo"] = archivo
+    _CACHE_FICHA["info"] = info
+    return info
+
+
 @router.get("/metrics")
 def get_metrics(_=Depends(LECTURA)):
     """Estado + ficha técnica del modelo activo. Visible para los 3 roles."""
@@ -49,12 +62,11 @@ def get_metrics(_=Depends(LECTURA)):
             "note": "No hay modelo activo.",
             "clases": [], "n_features": 0,
         }
-    # Ficha técnica desde el verificador (nombre, clases, features)
-    info = VerificadorML(ruta).info()
-    # Fecha de subida desde el registro
     reg = gestor.listar()
     activo = reg.get("activo")
     entrada = next((m for m in reg.get("modelos", []) if m["archivo"] == activo), {})
+    # Ficha técnica (cacheada; solo recarga el .pkl si cambió el modelo activo)
+    info = _ficha_modelo(ruta, activo)
     return {
         "model": info.get("nombre_modelo", "modelo"),
         "trained": True,

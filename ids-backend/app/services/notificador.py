@@ -35,15 +35,10 @@ _NIVEL = {"low": 1, "medium": 2, "high": 3, "critical": 4}
 
 
 def _coincide(regla, alerta: dict) -> bool:
-    """¿La alerta cumple las condiciones de esta regla de notificación?"""
-    # Severidad: la de la alerta debe ser >= la mínima de la regla
-    nivel_alerta = _NIVEL.get(str(alerta.get("severity", "")).lower(), 0)
-    nivel_minimo = _NIVEL.get(str(regla.severidad_minima).lower(), 0)
-    if nivel_alerta < nivel_minimo:
-        return False
-
+    """¿La alerta cumple las condiciones de esta regla de notificación?
+    Se filtra SOLO por tipo de ataque (la severidad ya no se usa: cualquier
+    ataque que dispare una firma se considera relevante)."""
     # Tipo de ataque: "any" acepta todo; si no, debe coincidir con el de la alerta.
-    # El tipo de la alerta lo inferimos del ML (clase) o del nombre de la firma.
     if regla.tipo_ataque and regla.tipo_ataque != "any":
         tipo_alerta = str(alerta.get("tipo_ataque", "")).lower()
         if regla.tipo_ataque.lower() not in tipo_alerta:

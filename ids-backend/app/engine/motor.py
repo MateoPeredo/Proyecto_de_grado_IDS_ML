@@ -285,7 +285,13 @@ def iniciar(interfaz: str, recargar_cada: int = 60, flush_trafico: int = 2):
                     )
                 except Exception:
                     pass
-                # Falso positivo: NO se guarda la alerta
+                # Falso positivo: NO se guarda la alerta, pero SÍ se cuenta como
+                # descartado para el gráfico de tráfico anómalo (línea azul).
+                try:
+                    agregador.registrar(alerta.get("protocolo", "otro"), 0,
+                                        malicioso=False, descartado=True)
+                except Exception:
+                    pass
                 continue
 
             # Confirmada (por ML o sin ML disponible): guardar
@@ -308,14 +314,27 @@ def iniciar(interfaz: str, recargar_cada: int = 60, flush_trafico: int = 2):
             guardar_alerta(alerta)
 
             # Notificación por correo (con anti-avalancha). El tipo de ataque
-            # se toma de la clase del ML si está disponible; si no, queda "any".
+            # se deriva de la FIRMA que disparó (no del ML), porque la firma sabe
+            # con certeza qué tipo de ataque es. Se mapea el tipo técnico de la
+            # firma (syn_flood, brute_force...) a las categorías de las reglas de
+            # notificación (DoS, BruteForce, PortScan).
             try:
-                if ml_resultado and ml_resultado.get("disponible"):
-                    alerta["tipo_ataque"] = ml_resultado.get("clase", "")
+                _MAPEO_TIPO = {
+                    "syn_flood": "DoS", "icmp_flood": "DoS", "udp_flood": "DoS",
+                    "conn_flood": "DoS", "ping_of_death": "DoS", "land_attack": "DoS",
+                    "brute_force": "BruteForce",
+                    "port_scan": "PortScan", "null_scan": "PortScan",
+                    "fin_scan": "PortScan", "xmas_scan": "PortScan",
+                    "udp_scan": "PortScan", "ping_sweep": "PortScan",
+                }
+                _tipo_firma = str(alerta.get("tipo_ataque", "")).lower()
+                # tipo_ataque queda como la CATEGORÍA (para las reglas). Si el tipo
+                # de firma no está en el mapeo, se conserva el original.
+                alerta["tipo_ataque"] = _MAPEO_TIPO.get(_tipo_firma, alerta.get("tipo_ataque", ""))
                 from app.services.notificador import despachar_notificaciones
                 despachar_notificaciones(alerta)
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[notif] no se pudo despachar: {e}")
 
             # Log de detección a Elasticsearch
             try:

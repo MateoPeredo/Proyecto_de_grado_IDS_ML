@@ -21,7 +21,10 @@ export function PageML({ t, role }) {
   // mostrar "inactivo" mientras una todavía no respondió. Si el estado viene sin
   // modelo pese a haber modelos en la lista (timing del backend recién arrancado),
   // reintenta una vez tras un momento.
-  const cargar = async (esReintento = false) => {
+  const cargar = async (opts = {}) => {
+    // fondo=true: es un refresco automático o reintento; NO muestra errores ni
+    // spinner (para no molestar). intento: nº de reintento actual.
+    const { fondo = false, intento = 0 } = opts;
     try {
       const [resMetrics, resModelos, resStats] = await Promise.all([
         mlService.getMetrics().catch(() => null),
@@ -33,20 +36,33 @@ export function PageML({ t, role }) {
       const lista   = resModelos?.data?.modelos || [];
       const act     = resModelos?.data?.activo || null;
 
-      // Caso timing: el backend dice "no entrenado" pero SÍ hay un modelo activo
-      // registrado. Es una lectura prematura -> reintentar una vez.
-      if (!esReintento && metrics && !metrics.trained && act) {
-        setTimeout(() => cargar(true), 1500);
-        return;   // no bajamos loading todavía; el reintento lo hará
+      // Lectura prematura: el backend dice "no entrenado" pero hay modelo activo
+      // registrado (típico con la VM lenta o el backend recién arrancado).
+      // Reintenta hasta 5 veces, esperando cada vez un poco más. No baja loading
+      // ni muestra error mientras reintenta: la info previa (si hay) sigue en pantalla.
+      const lecturaPrematura = (!metrics || !metrics.trained) && act;
+      if (lecturaPrematura && intento < 5) {
+        setTimeout(() => cargar({ fondo: true, intento: intento + 1 }), 1200 + intento * 800);
+        return;
       }
 
-      if (metrics) setInfo(metrics);
-      setModelos(lista);
-      setActivo(act);
+      // Actualizamos SOLO con datos válidos. Si algo vino vacío, conservamos lo
+      // que ya había (no piso la info buena con un fallo puntual).
+      if (metrics && (metrics.trained || !info)) setInfo(metrics);
+      if (lista.length || !modelos.length) setModelos(lista);
+      if (act || !activo) setActivo(act);
       if (resStats?.data) setStats(resStats.data);
-      if (!resMetrics) setError("No se pudo consultar el estado del modelo.");
+
+      // ÉXITO: si conseguimos el estado del modelo, limpiamos cualquier error viejo.
+      if (metrics && metrics.trained) {
+        setError("");
+      } else if (!fondo && !resMetrics) {
+        // Solo mostramos error en la carga inicial (no en refrescos de fondo),
+        // y solo si de verdad no pudimos leer nada.
+        setError("No se pudo consultar el estado del modelo. Reintentando...");
+      }
     } catch {
-      setError("No se pudo consultar el estado del modelo.");
+      if (!fondo) setError("No se pudo consultar el estado del modelo. Reintentando...");
     } finally {
       setLoading(false);
     }
@@ -54,9 +70,9 @@ export function PageML({ t, role }) {
 
   useEffect(() => {
     cargar();
-    // Auto-refresco cada 15s: si el modelo o las stats cambian, la UI se
-    // actualiza sola sin que el usuario tenga que recargar la página.
-    const id = setInterval(() => cargar(true), 15000);
+    // Auto-refresco en segundo plano (fondo=true): no muestra errores ni spinner,
+    // solo actualiza los datos si cambian.
+    const id = setInterval(() => cargar({ fondo: true }), 15000);
     return () => clearInterval(id);
   }, []);
 

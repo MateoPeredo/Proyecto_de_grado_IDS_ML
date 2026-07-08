@@ -26,8 +26,6 @@ def list_notifications(db: Session = Depends(get_db), _=Depends(current_user)):
 
 @router.post("", response_model=NotificationOut, status_code=201)
 def create_notification(body: NotificationCreate, db: Session = Depends(get_db), usuario=Depends(current_user)):
-    if body.severidad_minima not in SEVERIDADES:
-        raise HTTPException(status_code=400, detail="Severidad inválida")
     notif = Notification(**body.model_dump())
     db.add(notif)
     db.commit()

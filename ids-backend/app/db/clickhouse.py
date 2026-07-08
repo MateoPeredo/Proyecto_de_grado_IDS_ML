@@ -46,6 +46,7 @@ def init_clickhouse():
                 bytes              UInt64,
                 flujos_normales    UInt32,
                 flujos_maliciosos  UInt32,
+                flujos_descartados UInt32,
                 protocol           LowCardinality(String),
                 segmento           LowCardinality(String) DEFAULT 'datos'
             ) ENGINE = MergeTree()
@@ -57,6 +58,14 @@ def init_clickhouse():
             client.command(
                 f"ALTER TABLE {db}.traffic_raw "
                 f"ADD COLUMN IF NOT EXISTS segmento LowCardinality(String) DEFAULT 'datos'"
+            )
+        except Exception:
+            pass
+        # Migración idempotente: columna de descartados (falsos positivos del ML)
+        try:
+            client.command(
+                f"ALTER TABLE {db}.traffic_raw "
+                f"ADD COLUMN IF NOT EXISTS flujos_descartados UInt32 DEFAULT 0"
             )
         except Exception:
             pass

@@ -5,12 +5,6 @@ import { NavIcon } from "../components/ui/NavIcon";
 import { notificationsService } from "../services/api";
 
 const TIPOS_ATAQUE = ["any", "DoS", "DDoS", "PortScan", "BruteForce", "WebAttack", "Bot"];
-const SEVERIDADES  = [
-  { value: "low",      label: "Baja" },
-  { value: "medium",   label: "Media" },
-  { value: "high",     label: "Alta" },
-  { value: "critical", label: "Crítica" },
-];
 
 export function PageNotificaciones({ t }) {
   const s = useStyles(t);
@@ -84,8 +78,6 @@ export function PageNotificaciones({ t }) {
     setShowForm(false);
   };
 
-  const sevLabel = (v) => SEVERIDADES.find((s) => s.value === v)?.label ?? v;
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 10 }}>
@@ -128,7 +120,7 @@ export function PageNotificaciones({ t }) {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 12, color: t.text, fontWeight: 500 }}>{n.nombre}</div>
                     <div style={{ fontSize: 10, color: t.text3, marginTop: 2, fontFamily: "monospace" }}>
-                      {n.email} · ≥ {sevLabel(n.severidad_minima)} · {n.tipo_ataque}
+                      {n.email} · {n.tipo_ataque === "any" ? "cualquier ataque" : n.tipo_ataque}
                     </div>
                   </div>
                   <Toggle on={n.enabled} onChange={() => toggle(n)} t={t} />
@@ -161,21 +153,12 @@ export function PageNotificaciones({ t }) {
                   placeholder="admin@empresa.com"
                   onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} />
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <div>
-                  <label style={s.label}>Severidad mínima</label>
-                  <select style={s.select} value={form.severidad_minima}
-                    onChange={(e) => setForm((p) => ({ ...p, severidad_minima: e.target.value }))}>
-                    {SEVERIDADES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={s.label}>Tipo de ataque</label>
-                  <select style={s.select} value={form.tipo_ataque}
-                    onChange={(e) => setForm((p) => ({ ...p, tipo_ataque: e.target.value }))}>
-                    {TIPOS_ATAQUE.map((tp) => <option key={tp} value={tp}>{tp === "any" ? "Cualquiera" : tp}</option>)}
-                  </select>
-                </div>
+              <div>
+                <label style={s.label}>Tipo de ataque</label>
+                <select style={s.select} value={form.tipo_ataque}
+                  onChange={(e) => setForm((p) => ({ ...p, tipo_ataque: e.target.value }))}>
+                  {TIPOS_ATAQUE.map((tp) => <option key={tp} value={tp}>{tp === "any" ? "Cualquiera" : tp}</option>)}
+                </select>
               </div>
               <button onClick={guardar} style={{ ...s.btn("primary"), justifyContent: "center", padding: 10 }}>
                 <NavIcon name="check" size={14} /> {editId ? "Guardar cambios" : "Guardar notificación"}

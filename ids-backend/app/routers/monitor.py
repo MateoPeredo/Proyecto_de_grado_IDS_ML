@@ -13,29 +13,41 @@ DB = settings.CLICKHOUSE_DB
 
 
 @router.get("/stats")
-def get_stats(minutes: int = Query(60, le=1440), segmento: str | None = None,
+def get_stats(minutes: int = Query(10, le=1440), segmento: str | None = None,
               _=Depends(current_user)):
-    """Tráfico normal vs malicioso por minuto (para el gráfico en vivo).
-    Si se pasa 'segmento', filtra solo ese; si no, agrega todos."""
+    """Tráfico por intervalos de 10 segundos (para el gráfico en vivo, fluido).
+    Agrupa cada 10s en vez de por minuto: muchos más puntos = curva que avanza
+    seguido, se ve en tiempo real. Convierte a hora local, rellena los intervalos
+    sin datos con 0, y descarta el intervalo en curso (incompleto).
+    Devuelve normales, maliciosos (ataques reales) y descartados (falsos positivos)."""
+    TZ = "America/La_Paz"   # Bolivia (UTC-4); cambiar si el server está en otra zona
+    PASO = 10               # segundos por punto
     try:
         client = get_client()
         filtro_seg = ""
         if segmento and segmento != "todos":
             seg = segmento.replace("'", "")   # saneo básico
             filtro_seg = f"AND segmento = '{seg}'"
+        # toStartOfInterval agrupa en bloques de 10 segundos.
         rows = client.query(f"""
-            SELECT toStartOfMinute(ts)        AS minuto,
+            SELECT toStartOfInterval(toTimeZone(ts, '{TZ}'), INTERVAL {PASO} SECOND) AS t,
                    sum(flujos_normales)       AS normales,
                    sum(flujos_maliciosos)     AS maliciosos,
+                   sum(flujos_descartados)    AS descartados,
                    sum(packets)               AS packets
             FROM {DB}.traffic_raw
-            WHERE ts >= now() - INTERVAL {int(minutes)} MINUTE {filtro_seg}
-            GROUP BY minuto
-            ORDER BY minuto
+            WHERE ts >= now() - INTERVAL {int(minutes)} MINUTE
+              AND ts <  toStartOfInterval(now(), INTERVAL {PASO} SECOND)   {filtro_seg}
+            GROUP BY t
+            ORDER BY t
+            WITH FILL
+                FROM toStartOfInterval(toTimeZone(now() - INTERVAL {int(minutes)} MINUTE, '{TZ}'), INTERVAL {PASO} SECOND)
+                TO   toStartOfInterval(toTimeZone(now(), '{TZ}'), INTERVAL {PASO} SECOND)
+                STEP INTERVAL {PASO} SECOND
         """).result_rows
         series = [
-            {"ts": r[0].strftime("%H:%M"), "normales": int(r[1]),
-             "maliciosos": int(r[2]), "packets": int(r[3])}
+            {"ts": r[0].strftime("%H:%M:%S"), "normales": int(r[1]),
+             "maliciosos": int(r[2]), "descartados": int(r[3]), "packets": int(r[4])}
             for r in rows
         ]
         return {"series": series, "total_points": len(series)}
