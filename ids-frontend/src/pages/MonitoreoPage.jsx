@@ -112,14 +112,16 @@ export function PageMonitoreo({ t }) {
   useEffect(() => {
     cargarTodo();
     if (!autoRefresh) return;
-    // 3s con granularidad de 10s en el backend: la curva avanza seguido y fluido.
-    const iv = setInterval(cargarTodo, 3000);
+    // 2s con granularidad de 5s en el backend
+    const iv = setInterval(cargarTodo, 2000);
     return () => clearInterval(iv);
   }, [autoRefresh, segmento]);
 
-  const totalNormal = series.reduce((a, p) => a + (p.normales || 0), 0);
-  const totalMalicioso = series.reduce((a, p) => a + (p.maliciosos || 0), 0);
-  const totalPaquetes = series.reduce((a, p) => a + (p.packets || 0), 0);
+  // Las tarjetas muestran el ultimo punto del gráfico (el valor actual)
+  const ultimo = series.length > 0 ? series[series.length - 1] : {};
+  const totalNormal    = ultimo.normales    || 0;
+  const totalMalicioso = ultimo.maliciosos  || 0;
+  const totalPaquetes  = ultimo.packets     || 0;
 
   const hayDatos = series.length > 0;
   const datosGrafico = hayDatos
@@ -178,15 +180,15 @@ export function PageMonitoreo({ t }) {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 10 }}>
-        <MetricCard label="Flujos normales"   value={totalNormal}    color={t.ok}     t={t} />
-        <MetricCard label="Flujos maliciosos" value={totalMalicioso} color={t.danger} t={t} />
-        <MetricCard label="Paquetes (1h)"     value={totalPaquetes}  color={t.accent} t={t} />
+        <MetricCard label="Flujos normales (ahora)"   value={totalNormal}    color={t.ok}     t={t} />
+        <MetricCard label="Flujos maliciosos (ahora)" value={totalMalicioso} color={t.danger} t={t} />
+        <MetricCard label="Paquetes (ahora)"          value={totalPaquetes}  color={t.accent} t={t} />
       </div>
 
       {/* Tráfico NORMAL y ANÓMALO  */}
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div style={s.card}>
-          <SectionHeader title="Tráfico normal en tiempo real" badge="5 min" badgeVariant="live" t={t}>
+          <SectionHeader title="Tráfico normal en tiempo real" badge="" badgeVariant="live" t={t}>
             <BotonRefresh onClick={cargarTrafico} t={t} s={s} />
           </SectionHeader>
           {loading ? (
@@ -198,7 +200,7 @@ export function PageMonitoreo({ t }) {
         </div>
 
         <div style={s.card}>
-          <SectionHeader title="Tráfico anómalo en tiempo real" badge="5 min" badgeVariant="danger" t={t}>
+          <SectionHeader title="Tráfico anómalo en tiempo real" badge="" badgeVariant="danger" t={t}>
             <BotonRefresh onClick={cargarTrafico} t={t} s={s} />
           </SectionHeader>
           {loading ? (

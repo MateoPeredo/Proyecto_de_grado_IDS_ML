@@ -20,8 +20,8 @@ def get_stats(minutes: int = Query(10, le=1440), segmento: str | None = None,
     seguido, se ve en tiempo real. Convierte a hora local, rellena los intervalos
     sin datos con 0, y descarta el intervalo en curso (incompleto).
     Devuelve normales, maliciosos (ataques reales) y descartados (falsos positivos)."""
-    TZ = "America/La_Paz"   # Bolivia (UTC-4); cambiar si el server está en otra zona
-    PASO = 10               # segundos por punto
+    TZ = "America/La_Paz"   
+    PASO = 5               # segundos por punto
     try:
         client = get_client()
         filtro_seg = ""

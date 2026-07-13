@@ -231,6 +231,9 @@ def iniciar(interfaz: str, recargar_cada: int = 60, flush_trafico: int = 2):
 
         # ETAPA 1 — Detección por firmas: ¿este paquete dispara alguna alerta?
         alertas = detector.procesar(info)
+        # Rastreo para el gráfico: distinguir ataques reales de falsos positivos.
+        _hubo_confirmada = False   # al menos una alerta se conservó (ataque real)
+        _hubo_descartada = False   # al menos una alerta la descartó el ML (falso +)
         for alerta in alertas:
             # ETAPA 2 — Verificación ML: siempre que haya modelo activo
             ml_resultado = None
@@ -285,16 +288,14 @@ def iniciar(interfaz: str, recargar_cada: int = 60, flush_trafico: int = 2):
                     )
                 except Exception:
                     pass
-                # Falso positivo: NO se guarda la alerta, pero SÍ se cuenta como
-                # descartado para el gráfico de tráfico anómalo (línea azul).
-                try:
-                    agregador.registrar(alerta.get("protocolo", "otro"), 0,
-                                        malicioso=False, descartado=True)
-                except Exception:
-                    pass
+                # Falso positivo: NO se guarda la alerta. Se marca como descartada;
+                # el conteo para el gráfico (línea azul) se hace al final, una sola
+                # vez por paquete, para no contarlo también como malicioso (rojo).
+                _hubo_descartada = True
                 continue
 
             # Confirmada (por ML o sin ML disponible): guardar
+            _hubo_confirmada = True   # ataque real: cuenta como malicioso (rojo)
             alerta["ml"] = ml_resultado
             # Redactar la etiqueta segun lo que REALMENTE pasó, sin contradicciones:
             #  - ML dice ataque            -> "ML confirma: <clase> (NN%)"
@@ -353,8 +354,15 @@ def iniciar(interfaz: str, recargar_cada: int = 60, flush_trafico: int = 2):
             except Exception:
                 pass
 
-        # Tráfico: malicioso si disparó alerta, normal si no
-        agregador.registrar(info.protocolo, info.size, malicioso=bool(alertas))
+        # Tráfico para el gráfico:
+        #  - malicioso (rojo)   : SOLO si hubo una alerta confirmada (ataque real)
+        #  - descartado (azul)  : si el ML descartó la alerta (falso positivo)
+        #  - normal (verde)     : si no disparó ninguna firma
+        # Un falso positivo cuenta como descartado, NO como malicioso (antes se
+        # contaba en las dos líneas y el rojo subía sin ser un ataque).
+        agregador.registrar(info.protocolo, info.size,
+                            malicioso=_hubo_confirmada,
+                            descartado=(_hubo_descartada and not _hubo_confirmada))
 
         # Log de tráfico NORMAL muestreado (1 de cada N) para búsqueda sin saturar ES.
         if not alertas:
