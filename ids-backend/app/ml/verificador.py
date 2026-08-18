@@ -49,6 +49,17 @@ class VerificadorML:
         with self._lock:
             import joblib
             self._artefactos = joblib.load(self.ruta_modelo)
+            # El verificador clasifica de a un flujo por vez (no en lote). Para
+            # una única muestra, el paralelismo (n_jobs=-1) es contraproducente:
+            # el costo de repartir los arboles entre varios nucleos supera al
+            # calculo. Forzar n_jobs=1 acelera la prediccion individual varias
+            # veces sin alterar el modelo ni sus resultados.
+            try:
+                modelo = self._artefactos.get("modelo")
+                if modelo is not None and hasattr(modelo, "n_jobs"):
+                    modelo.n_jobs = 1
+            except Exception:
+                pass
             self._mtime = mtime
 
     def recargar(self, nueva_ruta: str | None = None):
@@ -100,6 +111,12 @@ class VerificadorML:
         # Construir el vector en el ORDEN exacto que espera el modelo
         fila = {c: features.get(c, 0) for c in cols}
         df = pd.DataFrame([fila], columns=cols)
+        # Saneo defensivo: forzar cada columna a numérico. Cualquier valor no
+        # convertible (texto corrupto, None, objetos) se transforma en NaN, que
+        # el imputer luego reemplaza por la mediana. Así una entrada anómala
+        # nunca interrumpe la clasificación (robustez ante tráfico corrupto).
+        for c in cols:
+            df[c] = pd.to_numeric(df[c], errors="coerce")
         df = df.replace([np.inf, -np.inf], np.nan)
 
         X = art["imputer"].transform(df)

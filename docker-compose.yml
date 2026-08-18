@@ -139,6 +139,7 @@ services:
       - "127.0.0.1:8123:8123"
     volumes:
       - clickhouse-data:/var/lib/clickhouse
+      - ./clickhouse-config/max_parts.xml:/etc/clickhouse-server/config.d/max_parts.xml:ro
     restart: unless-stopped
     networks:
       - ids-net

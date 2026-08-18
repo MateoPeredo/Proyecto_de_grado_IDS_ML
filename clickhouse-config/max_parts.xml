@@ -1,0 +1,9 @@
+<clickhouse>
+    <!-- Red de seguridad ante apagones bruscos de la VM.
+         Si ClickHouse encuentra partes rotas al arrancar (por no cerrar bien),
+         con el límite por defecto (100) se niega a cargar la tabla.
+         Subiéndolo a 500, arranca igual limpiando las partes rotas solo. -->
+    <merge_tree>
+        <max_suspicious_broken_parts>500</max_suspicious_broken_parts>
+    </merge_tree>
+</clickhouse>
