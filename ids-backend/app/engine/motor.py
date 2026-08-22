@@ -16,6 +16,7 @@ Si no se indica interfaz, intenta leerla de la config del IDS (tabla config).
 import argparse
 import os
 import time
+import logging
 
 from app.db.mysql import SessionLocal
 
@@ -383,11 +384,49 @@ def iniciar(interfaz: str, recargar_cada: int = 60, flush_trafico: int = 2):
     sniff(iface=interfaz, prn=manejar, store=False)
 
 
+def _leer_config():
+    """
+    Lee la configuración del IDS desde la tabla `config` en MySQL. Devuelve un
+    diccionario con las claves de CONFIG_DEFAULTS, completando con los valores
+    por defecto las que aún no estén guardadas. Así los parámetros que el usuario
+    ajusta en la pantalla de Configuración tienen efecto real sobre el motor.
+    """
+    try:
+        from app.db.mysql import SessionLocal
+        from app.models.config import Config, CONFIG_DEFAULTS
+        db = SessionLocal()
+        try:
+            cfg = {f.clave: f.valor for f in db.query(Config).all()}
+        finally:
+            db.close()
+        for k, v in CONFIG_DEFAULTS.items():
+            cfg.setdefault(k, v)
+        return cfg
+    except Exception as e:
+        print(f"[motor] No se pudo leer la config de MySQL ({e}); uso valores por defecto.")
+        from app.models.config import CONFIG_DEFAULTS
+        return dict(CONFIG_DEFAULTS)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Motor de captura del IDS")
-    parser.add_argument("--interfaz", "-i", required=True, help="Interfaz de red a capturar (ej. eth0, br-xxxx)")
+    # Cada sensor vigila su propio segmento, por eso la interfaz es obligatoria y
+    # se define por sensor en el despliegue (docker-compose). Lo que SÍ se lee de
+    # la configuración global de la app son parámetros comunes a todos los
+    # sensores: el nivel de log y la acción al detectar.
+    parser.add_argument("--interfaz", "-i", required=True,
+                        help="Interfaz de red a capturar (ej. br-datos, br-wifi). Propia de cada sensor.")
     parser.add_argument("--recargar-cada", type=int, default=60, help="Segundos entre recargas de firmas")
     args = parser.parse_args()
+
+    cfg = _leer_config()
+    # Nivel de log global: ajusta el detalle de la salida del motor (no afecta la detección).
+    nivel = str(cfg.get("deteccion_log_level", "info")).upper()
+    logging.basicConfig(level=getattr(logging, nivel, logging.INFO),
+                        format="[motor] %(levelname)s: %(message)s")
+    accion = cfg.get("deteccion_accion", "alertar_registrar")
+    print(f"[motor] Config global -> accion={accion} | log={nivel}")
+
     iniciar(args.interfaz, args.recargar_cada)
 
 

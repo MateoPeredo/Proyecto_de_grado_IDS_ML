@@ -20,10 +20,7 @@ class Config(Base):
 # Valores por defecto de la configuración del IDS.
 # Se siembran al arrancar si la tabla está vacía.
 CONFIG_DEFAULTS = {
-    # Captura de red
-    "captura_interfaz": "eth0",       # interfaz donde escucha el IDS
-    "captura_modo": "promiscuo",      # promiscuo | normal
-    # Motor de detección (firmas)
+    # Motor de detección (firmas) — parámetros globales, comunes a todos los sensores.
     "deteccion_accion": "alertar_registrar",  # solo_alertar | alertar_registrar
     "deteccion_log_level": "info",            # debug | info | warning | error
 }

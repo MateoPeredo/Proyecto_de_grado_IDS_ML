@@ -4,7 +4,7 @@ import { MetricCard, Toggle, SectionHeader } from "../components/ui/SharedUI";
 import { NavIcon } from "../components/ui/NavIcon";
 import { notificationsService } from "../services/api";
 
-const TIPOS_ATAQUE = ["any", "DoS", "DDoS", "PortScan", "BruteForce", "WebAttack", "Bot"];
+const TIPOS_ATAQUE = ["any", "DoS", "PortScan", "BruteForce"];
 
 export function PageNotificaciones({ t }) {
   const s = useStyles(t);

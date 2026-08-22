@@ -33,6 +33,9 @@ export function useStyles(t) {
       fontSize: 13,
       fontFamily: "inherit",
       outline: "none",
+      // colorScheme hace que el menú desplegable nativo use los colores del tema
+      // (texto claro sobre fondo oscuro en modo oscuro, y viceversa).
+      colorScheme: t.bg === "#f4f5f7" ? "light" : "dark",
     },
     label: {
       fontSize: 11,

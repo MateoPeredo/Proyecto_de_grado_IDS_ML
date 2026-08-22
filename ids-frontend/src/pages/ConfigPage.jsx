@@ -2,25 +2,22 @@ import { useState, useEffect } from "react";
 import { useStyles } from "../hooks/useStyles";
 import { SectionHeader } from "../components/ui/SharedUI";
 import { NavIcon } from "../components/ui/NavIcon";
-import { configService } from "../services/api";
+import { configService, monitorService } from "../services/api";
 
-// Secciones de configuración (solo lo referente al IDS).
-// Cada campo mapea a una clave del backend (tabla config en MySQL).
+// Configuración GLOBAL del IDS: parámetros que aplican por igual a todos los
+// sensores. La interfaz de captura NO va aquí: cada sensor vigila su propio
+// segmento (un bridge/VLAN distinto), así que se define por sensor en el
+// despliegue, no de forma global. Esos sensores se muestran más abajo, en
+// modo informativo (solo lectura).
 const SECTIONS = [
   {
-    title: "Captura de red",
-    fields: [
-      { label: "Interfaz de red", key: "captura_interfaz", type: "select", options: ["eth0", "eth1", "wlan0", "lo"] },
-      { label: "Modo de captura", key: "captura_modo",      type: "select", options: ["promiscuo", "normal"]        },
-    ],
-  },
-  {
     title: "Motor de detección (firmas)",
+    desc: "Parámetros globales que aplican a todos los sensores.",
     fields: [
-      { label: "Acción al detectar", key: "deteccion_accion",    type: "select",
+      { label: "Acción al detectar", key: "deteccion_accion", type: "select",
         options: [
-          { value: "solo_alertar",       label: "Solo alertar" },
-          { value: "alertar_registrar",  label: "Alertar y registrar" },
+          { value: "solo_alertar",      label: "Solo alertar" },
+          { value: "alertar_registrar", label: "Alertar y registrar" },
         ] },
       { label: "Nivel de log", key: "deteccion_log_level", type: "select",
         options: ["debug", "info", "warning", "error"] },
@@ -28,18 +25,25 @@ const SECTIONS = [
   },
 ];
 
-export function PageConfig({ t, mode, onToggleTheme }) {
+export function PageConfig({ t }) {
   const s = useStyles(t);
-  const [cfg,     setCfg]     = useState({});
-  const [loading, setLoading] = useState(true);
-  const [saving,  setSaving]  = useState(false);
-  const [saved,   setSaved]   = useState(false);
-  const [error,   setError]   = useState("");
+  const [cfg,      setCfg]      = useState({});
+  const [sensores, setSensores] = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [saving,   setSaving]   = useState(false);
+  const [saved,    setSaved]    = useState(false);
+  const [error,    setError]    = useState("");
 
-  // Cargar la configuración real desde el backend al montar
+  // Cargar configuración global y estado de los sensores al montar
   useEffect(() => {
-    configService.get()
-      .then((res) => setCfg(res.data))
+    Promise.all([
+      configService.get(),
+      monitorService.getSensores().catch(() => ({ data: { sensores: [] } })),
+    ])
+      .then(([cfgRes, senRes]) => {
+        setCfg(cfgRes.data);
+        setSensores(senRes.data?.sensores ?? []);
+      })
       .catch(() => setError("No se pudo cargar la configuración del backend."))
       .finally(() => setLoading(false));
   }, []);
@@ -58,7 +62,6 @@ export function PageConfig({ t, mode, onToggleTheme }) {
     }
   };
 
-  // Normaliza opciones: pueden ser strings simples o {value,label}
   const renderOption = (o) =>
     typeof o === "string"
       ? <option key={o} value={o}>{o}</option>
@@ -70,9 +73,13 @@ export function PageConfig({ t, mode, onToggleTheme }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {/* Configuración global editable */}
       {SECTIONS.map((sec) => (
         <div key={sec.title} style={s.card}>
           <SectionHeader title={sec.title} t={t} />
+          {sec.desc && (
+            <div style={{ fontSize: 12, color: t.text3, marginBottom: 12, marginTop: -6 }}>{sec.desc}</div>
+          )}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12 }}>
             {sec.fields.map((f) => (
               <div key={f.key}>
@@ -90,29 +97,54 @@ export function PageConfig({ t, mode, onToggleTheme }) {
         </div>
       ))}
 
-      {/* Apariencia */}
-      <div style={s.card}>
-        <SectionHeader title="Apariencia" t={t} />
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{ fontSize: 13, color: t.text }}>Tema de la interfaz</span>
-          <button onClick={onToggleTheme} style={s.btn("default")}>
-            <NavIcon name={mode === "light" ? "moon" : "sun"} size={14} />
-            {mode === "light" ? "Cambiar a oscuro" : "Cambiar a claro"}
-          </button>
-          <span style={{ fontSize: 12, color: t.text3 }}>
-            Actualmente: {mode === "light" ? "Claro" : "Oscuro"}
-          </span>
-        </div>
-      </div>
-
-      {/* Guardar */}
+      {/* Guardar (solo para la config global) */}
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <button onClick={save} disabled={saving} style={{ ...s.btn("primary"), padding: "10px 28px", opacity: saving ? 0.7 : 1 }}>
           <NavIcon name="check" size={14} />
           {saving ? "Guardando..." : saved ? "Guardado" : "Guardar configuración"}
         </button>
-        {saved && <span style={{ fontSize: 12, color: t.ok }}>Configuración guardada en MySQL.</span>}
+        {saved && <span style={{ fontSize: 12, color: t.ok }}>Configuración guardada.</span>}
         {error && <span style={{ fontSize: 12, color: t.danger }}>{error}</span>}
+      </div>
+
+      {/* Sensores por segmento (informativo, solo lectura) */}
+      <div style={s.card}>
+        <SectionHeader title="Sensores por segmento" t={t} />
+        <div style={{ fontSize: 12, color: t.text3, marginBottom: 12, marginTop: -6 }}>
+          Cada segmento de la red (VLAN en producción, bridge en el laboratorio) es
+          vigilado por un sensor dedicado que captura en modo promiscuo. La interfaz
+          de cada sensor se define en su despliegue. Esta vista es informativa.
+        </div>
+
+        {sensores.length === 0 ? (
+          <div style={{ fontSize: 13, color: t.text3, padding: "8px 0" }}>
+            No hay sensores reportando estado. Levantá los sensores para verlos aquí.
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 10 }}>
+            {sensores.map((sen) => (
+              <div key={sen.segmento} style={{ ...s.metric, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: t.text, textTransform: "capitalize" }}>
+                    {sen.segmento}
+                  </div>
+                  <div style={{ fontSize: 11, color: t.text3, fontFamily: "monospace", marginTop: 2 }}>
+                    {sen.interfaz || "—"}
+                  </div>
+                </div>
+                <span style={{
+                  fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.4px",
+                  padding: "3px 9px", borderRadius: 5,
+                  background: sen.activo ? t.okBg : t.bg4,
+                  color:      sen.activo ? t.ok   : t.text3,
+                  border: `0.5px solid ${sen.activo ? t.ok : t.border2}`,
+                }}>
+                  {sen.activo ? "activo" : "inactivo"}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
