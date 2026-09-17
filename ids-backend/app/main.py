@@ -11,7 +11,7 @@ from app.db.clickhouse import init_clickhouse
 from app.db.elastic import init_elastic
 from app.models.user import User
 from app.core.security import hash_password
-from app.routers import auth, rules, alerts, monitor, ml, config as config_router, notifications, logs, signatures
+from app.routers import auth, rules, alerts, monitor, ml, config as config_router, notifications, logs, signatures, acciones, prediccion
 
 
 def seed_admin():
@@ -118,6 +118,8 @@ app.include_router(config_router.router)
 app.include_router(notifications.router)
 app.include_router(logs.router)
 app.include_router(signatures.router)
+app.include_router(acciones.router)
+app.include_router(prediccion.router)
 
 
 @app.get("/health")

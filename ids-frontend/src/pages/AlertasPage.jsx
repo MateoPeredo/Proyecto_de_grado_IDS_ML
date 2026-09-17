@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useStyles } from "../hooks/useStyles";
 import { SevBadge, SectionHeader } from "../components/ui/SharedUI";
 import { NavIcon } from "../components/ui/NavIcon";
+import { AccionesModal } from "../components/ui/AccionesModal";
 
 // Página de alertas conectada al backend (los datos vienen del hook useAlerts -> MySQL).
 // Mientras el motor del IDS no genere alertas, la tabla aparece vacía.
@@ -10,6 +11,7 @@ export function PageAlertas({ alerts, onAck, onAckAll, t }) {
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [segmento, setSegmento] = useState("todos");
+  const [accionesAlert, setAccionesAlert] = useState(null); // alerta cuyo playbook se muestra
 
   const filtered = alerts.filter((a) => {
     if (filter === "active" && a.acknowledged) return false;
@@ -149,11 +151,16 @@ export function PageAlertas({ alerts, onAck, onAckAll, t }) {
                     </span>
                   </td>
                   <td style={{ padding: "8px 0", borderBottom: `0.5px solid ${t.border}` }}>
-                    {!a.acknowledged && (
-                      <button onClick={() => onAck(a.id)} style={{ ...s.btn("ghost"), fontSize: 11, padding: "4px 10px" }}>
-                        <NavIcon name="check" size={12} /> ACK
+                    <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", whiteSpace: "nowrap" }}>
+                      <button onClick={() => setAccionesAlert(a)} style={{ ...s.btn("ghost"), fontSize: 11, padding: "4px 10px" }} title="Ver acciones de respuesta (NIST)">
+                        <NavIcon name="shield" size={12} /> Acciones
                       </button>
-                    )}
+                      {!a.acknowledged && (
+                        <button onClick={() => onAck(a.id)} style={{ ...s.btn("ghost"), fontSize: 11, padding: "4px 10px" }}>
+                          <NavIcon name="check" size={12} /> ACK
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -166,6 +173,10 @@ export function PageAlertas({ alerts, onAck, onAckAll, t }) {
           )}
         </div>
       </div>
+
+      {accionesAlert && (
+        <AccionesModal alert={accionesAlert} t={t} onClose={() => setAccionesAlert(null)} />
+      )}
     </div>
   );
 }

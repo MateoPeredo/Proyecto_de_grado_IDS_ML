@@ -14,6 +14,8 @@ import { PageLogs }      from "../../pages/LogsPage";
 import { PageML }        from "../../pages/MLModeloPage";
 import { PageUsuarios }  from "../../pages/UsuariosPage";
 import { PageConfig }    from "../../pages/ConfigPage";
+import { PageAcciones }  from "../../pages/AccionesPage";
+import { PagePrediccion } from "../../pages/PrediccionPage";
 
 export function AppShell() {
   const { t, mode, toggle } = useTheme();
@@ -35,6 +37,8 @@ export function AppShell() {
     ml:        <PageML       t={t} role={role} />,
     usuarios:  <PageUsuarios t={t} />,
     config:    <PageConfig   t={t} mode={mode} onToggleTheme={toggle} />,
+    acciones:  <PageAcciones t={t} />,
+    prediccion:<PagePrediccion t={t} />,
   };
 
   return (

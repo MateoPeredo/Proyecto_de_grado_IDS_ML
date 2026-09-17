@@ -48,9 +48,11 @@ export const THEMES = {
 export const NAV_ITEMS = [
   { id: "dashboard", label: "Dashboard",       icon: "grid"     },
   { id: "monitoreo", label: "Monitoreo",        icon: "activity" },
+  { id: "prediccion",label: "Predicción",        icon: "activity" },
   { id: "alertas",   label: "Alertas",          icon: "bell"     },
   { id: "notif",     label: "Notificaciones",   icon: "bell"     },
   { id: "reglas",    label: "Reglas / Firmas",  icon: "file"     },
+  { id: "acciones",  label: "Acciones",          icon: "shield"   },
   { id: "logs",      label: "Logs",             icon: "file"     },
   { id: "ml",        label: "ML / Modelo",      icon: "cpu"      },
   { id: "usuarios",  label: "Usuarios",         icon: "users"    },

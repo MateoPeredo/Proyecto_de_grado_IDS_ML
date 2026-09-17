@@ -126,3 +126,16 @@ export const signaturesService = {
   toggle: (id, enabled)  => api.patch(`/signatures/${id}`, { enabled }),
   delete: (id)           => api.delete(`/signatures/${id}`),
 };
+
+// ── Acciones de respuesta (playbooks NIST SP 800-61) ─────────────────────────
+export const accionesService = {
+  getAll:   ()       => api.get("/acciones"),
+  porFirma: (nombre) => api.get("/acciones/por-firma", { params: { nombre } }),
+  porTipo:  (tipo)   => api.get(`/acciones/${tipo}`),
+};
+
+// ── Predicción de ataques (regresión lineal) ─────────────────────────────────
+export const prediccionService = {
+  getAll:  ()     => api.get("/prediccion"),
+  porTipo: (tipo) => api.get(`/prediccion/${tipo}`),
+};
